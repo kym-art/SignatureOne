@@ -17,7 +17,13 @@ export const getPrismaClient = () => {
   }
 
   try {
-    // Dynamic import pattern for Node.js server environments
+    // Dynamic import pattern for Node.js server environments.
+    // Repli sur les variables PostgreSQL préfixées `kym_` (intégration
+    // plateforme) si DATABASE_URL n'est pas définie.
+    if (typeof process.env.DATABASE_URL === 'undefined' || process.env.DATABASE_URL === '') {
+      process.env.DATABASE_URL =
+        process.env.kym_POSTGRES_PRISMA_URL || process.env.kym_POSTGRES_URL || '';
+    }
     const { PrismaClient } = require('@prisma/client');
     const prisma = globalThis.prismaGlobal ?? new PrismaClient();
     if (process.env.NODE_ENV !== 'production') {
@@ -31,6 +37,16 @@ export const getPrismaClient = () => {
 };
 
 export const isPrismaConfigured = () => {
-  const dbUrl = typeof process !== 'undefined' ? process.env?.DATABASE_URL : undefined;
-  return Boolean(dbUrl && !dbUrl.includes('[YOUR-PASSWORD]'));
+  if (typeof process === 'undefined') return false;
+  const dbUrl =
+    process.env?.DATABASE_URL ||
+    process.env?.kym_POSTGRES_PRISMA_URL ||
+    process.env?.kym_POSTGRES_URL ||
+    undefined;
+  return Boolean(
+    dbUrl &&
+      !dbUrl.includes('[YOUR-PASSWORD]') &&
+      !dbUrl.includes('<') &&
+      !dbUrl.includes('placeholder')
+  );
 };

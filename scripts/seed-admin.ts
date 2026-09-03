@@ -49,8 +49,17 @@ function formatPhone(phone: string): string {
 async function main(): Promise<void> {
   loadEnv();
 
-  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  const url =
+    process.env.SUPABASE_URL ??
+    process.env.kym_SUPABASE_URL ??
+    process.env.NEXT_PUBLIC_kym_SUPABASE_URL ??
+    process.env.NEXT_PUBLIC_SUPABASE_URL ??
+    '';
+  const serviceKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ??
+    process.env.kym_SUPABASE_SERVICE_ROLE_KEY ??
+    process.env.kym_SUPABASE_SECRET_KEY ??
+    '';
   const telephone = formatPhone(process.env.ADMIN_TELEPHONE ?? '+22890000000');
   const password = process.env.ADMIN_PASSWORD ?? '';
 

@@ -30,11 +30,17 @@ function isPlaceholder(value: string): boolean {
 
 const supabaseUrl =
   readEnvServer('SUPABASE_URL') ||
+  readEnvServer('kym_SUPABASE_URL') ||
+  readEnvServer('NEXT_PUBLIC_kym_SUPABASE_URL') ||
   readEnvServer('NEXT_PUBLIC_SUPABASE_URL') ||
   readEnvServer('VITE_SUPABASE_URL') ||
   '';
 
-const supabaseServiceRoleKey = readEnvServer('SUPABASE_SERVICE_ROLE_KEY') || '';
+const supabaseServiceRoleKey =
+  readEnvServer('SUPABASE_SERVICE_ROLE_KEY') ||
+  readEnvServer('kym_SUPABASE_SERVICE_ROLE_KEY') ||
+  readEnvServer('kym_SUPABASE_SECRET_KEY') ||
+  '';
 
 /**
  * Vrai uniquement si URL + service_role sont présents et non-placeholder.

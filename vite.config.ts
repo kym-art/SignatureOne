@@ -8,6 +8,11 @@ export default defineConfig(() => {
     // Chemins relatifs pour les assets : permet d'ouvrir dist/index.html
     // directement (file://) ou de déployer sur un sous-chemin sans page blanche.
     base: './',
+    // Expose au bundle client les variables d'environnement VITE_* et les
+    // variables publiques NEXT_PUBLIC_* (dont NEXT_PUBLIC_kym_* fournies par
+    // l'intégration plateforme). Le préfixe `kym_` seul est volontairement
+    // EXCLU : il porterait des secrets (service_role) dans le bundle client.
+    envPrefix: ['VITE_', 'NEXT_PUBLIC_'],
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
