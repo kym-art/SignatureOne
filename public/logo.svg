@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="100%" height="100%">
+  <!-- Background Cream -->
+  <rect width="600" height="600" fill="#FAF3E8"/>
+  
+  <g transform="translate(300, 180)">
+    <!-- Thin Golden Outer Circle -->
+    <circle cx="0" cy="0" r="130" fill="none" stroke="#C9A24B" stroke-width="2" stroke-dasharray="3 3" opacity="0.6"/>
+    <circle cx="0" cy="0" r="125" fill="none" stroke="#C9A24B" stroke-width="1.5" opacity="0.7"/>
+
+    <!-- Left Golden Wheat Ears (Épis de blé dorés) -->
+    <g fill="#C9A24B" stroke="#B8913B" stroke-width="0.5">
+      <!-- Stalk stem -->
+      <path d="M -90 100 C -95 40 -85 -20 -65 -80" fill="none" stroke="#C9A24B" stroke-width="3" stroke-linecap="round"/>
+      <path d="M -100 110 C -105 50 -98 0 -80 -50" fill="none" stroke="#C9A24B" stroke-width="2" stroke-linecap="round"/>
+      
+      <!-- Grain 1 -->
+      <path d="M -65 -80 C -55 -70 -58 -55 -70 -60 C -75 -65 -70 -75 -65 -80 Z"/>
+      <!-- Grain 2 -->
+      <path d="M -73 -60 C -60 -50 -65 -35 -78 -40 C -82 -45 -78 -55 -73 -60 Z"/>
+      <!-- Grain 3 -->
+      <path d="M -80 -40 C -68 -30 -72 -15 -85 -20 C -89 -25 -85 -35 -80 -40 Z"/>
+      <!-- Grain 4 -->
+      <path d="M -86 -20 C -75 -10 -78 5 -90 0 C -95 -5 -90 -15 -86 -20 Z"/>
+      <!-- Grain 5 -->
+      <path d="M -90 0 C -80 10 -84 25 -95 20 C -99 15 -95 5 -90 0 Z"/>
+
+      <!-- Second wheat stalk grains -->
+      <path d="M -80 -50 C -70 -40 -74 -25 -86 -30 C -90 -35 -85 -45 -80 -50 Z"/>
+      <path d="M -88 -30 C -78 -20 -82 -5 -94 -10 C -98 -15 -93 -25 -88 -30 Z"/>
+      <path d="M -94 -10 C -84 0 -88 15 -100 10 C -104 5 -99 -5 -94 -10 Z"/>
+      <path d="M -100 10 C -90 20 -94 35 -106 30 C -110 25 -105 15 -100 10 Z"/>
+    </g>
+
+    <!-- Outer Forest Green Organic Arc Sweep -->
+    <path d="M -110 70 C -115 -10 -70 -80 0 -95 C 60 -108 120 -80 140 -20" fill="none" stroke="#1F3D2E" stroke-width="4" stroke-linecap="round"/>
+
+    <!-- Bowl of Dèguè (Bol de Dèguè artisanal) in Forest Green -->
+    <g fill="#1F3D2E">
+      <!-- Outer Bowl Body -->
+      <path d="M -75 -10 C -75 60 55 60 55 -10 C 55 -30 -75 -30 -75 -10 Z"/>
+      <!-- Bowl base foot -->
+      <path d="M -35 50 C -35 62 15 62 15 50 Z"/>
+      
+      <!-- Inner Cream Yogurt Surface -->
+      <ellipse cx="-10" cy="-10" rx="55" ry="24" fill="#FAF3E8" stroke="#1F3D2E" stroke-width="3"/>
+
+      <!-- Dèguè Grains inside bowl -->
+      <circle cx="-35" cy="-8" r="4.5" fill="#1F3D2E"/>
+      <circle cx="-20" cy="-14" r="5" fill="#1F3D2E"/>
+      <circle cx="-5" cy="-6" r="4.5" fill="#1F3D2E"/>
+      <circle cx="-18" cy="-2" r="4" fill="#1F3D2E"/>
+      <circle cx="10" cy="-10" r="4" fill="#1F3D2E"/>
+      <circle cx="-8" cy="-16" r="3.5" fill="#1F3D2E"/>
+
+      <!-- Stylized Spoon (Cuillère) -->
+      <path d="M 22 -38 C 12 -28 3 -12 8 -6 C 14 0 25 -5 32 -18 C 38 -30 45 -48 48 -58 C 44 -58 30 -48 22 -38 Z"/>
+      <path d="M 38 -38 L 50 -60" stroke="#1F3D2E" stroke-width="3" stroke-linecap="round"/>
+    </g>
+  </g>
+
+  <!-- Typography SIGNATURE ONE -->
+  <text x="300" y="375" text-anchor="middle" font-family="'Playfair Display', 'Cormorant Garamond', 'Georgia', serif" font-size="52" font-weight="600" letter-spacing="4" fill="#1F3D2E">
+    SIGNATURE
+  </text>
+  
+  <!-- "ONE" with Golden Diamond Ornaments -->
+  <g transform="translate(300, 425)">
+    <!-- Left Golden Diamond & Line -->
+    <line x1="-190" y1="-8" x2="-80" y2="-8" stroke="#C9A24B" stroke-width="1.5"/>
+    <polygon points="-75,-8 -70,-13 -65,-8 -70,-3" fill="#C9A24B"/>
+    
+    <!-- Word ONE -->
+    <text x="0" y="8" text-anchor="middle" font-family="'Playfair Display', 'Cormorant Garamond', 'Georgia', serif" font-size="44" font-weight="600" letter-spacing="6" fill="#1F3D2E">
+      ONE
+    </text>
+    
+    <!-- Right Golden Diamond & Line -->
+    <polygon points="65,-8 70,-13 75,-8 70,-3" fill="#C9A24B"/>
+    <line x1="80" y1="-8" x2="190" y2="-8" stroke="#C9A24B" stroke-width="1.5"/>
+  </g>
+
+  <!-- Tagline: LE GOÛT QUI FAIT LA DIFFÉRENCE. -->
+  <g transform="translate(300, 485)">
+    <!-- Small Leaf Icon in Forest Green -->
+    <path d="M 0 -18 C -6 -12 -6 -4 0 0 C 6 -4 6 -12 0 -18 Z" fill="#1F3D2E"/>
+    <path d="M -8 -14 C -13 -10 -11 -4 -6 -2" fill="none" stroke="#1F3D2E" stroke-width="1.5" stroke-linecap="round"/>
+    <path d="M 8 -14 C 13 -10 11 -4 6 -2" fill="none" stroke="#1F3D2E" stroke-width="1.5" stroke-linecap="round"/>
+    
+    <line x1="-70" y1="-9" x2="-20" y2="-9" stroke="#1F3D2E" stroke-width="1" opacity="0.4"/>
+    <line x1="20" y1="-9" x2="70" y2="-9" stroke="#1F3D2E" stroke-width="1" opacity="0.4"/>
+
+    <text x="0" y="16" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" letter-spacing="3.5" fill="#1F3D2E">
+      LE GOÛT QUI FAIT LA DIFFÉRENCE.
+    </text>
+
+    <!-- Bottom Golden Flourish Line -->
+    <path d="M -40 28 C -10 32 10 32 40 28" fill="none" stroke="#C9A24B" stroke-width="1.5" stroke-linecap="round"/>
+  </g>
+</svg>

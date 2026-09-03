@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Rounded Base in Forest Green -->
+  <rect width="512" height="512" rx="100" fill="#1F3D2E"/>
+  
+  <!-- Subtle Cream Inner Canvas -->
+  <rect x="24" y="24" width="464" height="464" rx="80" fill="#FAF3E8"/>
+
+  <!-- Golden Ring -->
+  <circle cx="256" cy="220" r="140" fill="none" stroke="#C9A24B" stroke-width="2.5" stroke-dasharray="4 4" opacity="0.8"/>
+
+  <!-- Left Golden Wheat Stalk -->
+  <g fill="#C9A24B">
+    <path d="M 160 300 C 150 240 160 170 190 120" fill="none" stroke="#C9A24B" stroke-width="3" stroke-linecap="round"/>
+    <path d="M 190 120 C 202 130 198 145 185 140 C 180 135 185 125 190 120 Z"/>
+    <path d="M 180 142 C 193 152 188 167 175 162 C 170 157 175 147 180 142 Z"/>
+    <path d="M 172 165 C 185 175 180 190 167 185 C 162 180 167 170 172 165 Z"/>
+    <path d="M 165 190 C 178 200 173 215 160 210 C 155 205 160 195 165 190 Z"/>
+  </g>
+
+  <!-- Green Stylized Degue Bowl -->
+  <g fill="#1F3D2E">
+    <path d="M 180 210 C 180 290 310 290 310 210 Z"/>
+    <path d="M 220 280 C 220 294 270 294 270 280 Z"/>
+    <!-- Surface -->
+    <ellipse cx="245" cy="210" rx="60" ry="25" fill="#FAF3E8" stroke="#1F3D2E" stroke-width="3.5"/>
+    
+    <!-- Millet grains -->
+    <circle cx="220" cy="210" r="5" fill="#1F3D2E"/>
+    <circle cx="235" cy="204" r="5.5" fill="#1F3D2E"/>
+    <circle cx="250" cy="212" r="5" fill="#1F3D2E"/>
+    <circle cx="265" cy="207" r="4.5" fill="#1F3D2E"/>
+    <circle cx="238" cy="218" r="4.5" fill="#1F3D2E"/>
+
+    <!-- Spoon -->
+    <path d="M 275 180 C 265 190 255 206 260 212 C 266 218 277 213 284 200 C 290 188 297 170 300 160 Z"/>
+    <path d="M 290 180 L 305 158" stroke="#1F3D2E" stroke-width="3.5" stroke-linecap="round"/>
+  </g>
+
+  <!-- Typography SIGNATURE ONE -->
+  <text x="256" y="380" text-anchor="middle" font-family="'Playfair Display', 'Cormorant Garamond', 'Georgia', serif" font-size="36" font-weight="bold" letter-spacing="4" fill="#1F3D2E">
+    SIGNATURE
+  </text>
+  <text x="256" y="420" text-anchor="middle" font-family="'Playfair Display', 'Cormorant Garamond', 'Georgia', serif" font-size="28" font-weight="bold" letter-spacing="6" fill="#C9A24B">
+    ONE
+  </text>
+  <text x="256" y="455" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="600" letter-spacing="2.5" fill="#1F3D2E">
+    LE GOÛT QUI FAIT LA DIFFÉRENCE.
+  </text>
+</svg>

@@ -1,0 +1,6 @@
+{
+  "name": "Signature One",
+  "description": "Application e-commerce et point de vente (POS) pour Signature One : commande en ligne et sur table (QR Code), paiement Mobile Money (Flooz & TMoney), reçus officiels A4 & tickets de caisse PDF (Module 9), espace vendeur en temps réel avec caisse comptoir, pilotage administrateur avec gestion des dépenses, avis clients, statistiques analytiques et exports CSV.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,155 @@
+// Prisma Schema for Signature One
+// Artisanal Dèguè, Yogurt & Beverages platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  role      Role
+  nom       String
+  telephone String   @unique
+  actif     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  ventes    Order[]  @relation("VendeurCommandes")
+}
+
+model Product {
+  id               String   @id @default(cuid())
+  nom              String
+  description      String
+  format           String
+  prix             Int
+  photoUrl         String?
+  disponible       Boolean  @default(true)
+  quantiteRestante Int?
+  actif            Boolean  @default(true)
+  misEnAvant       Boolean  @default(false)
+  createdAt        DateTime @default(now())
+}
+
+model TableQR {
+  id     String @id @default(cuid())
+  numero Int    @unique
+}
+
+model Order {
+  id                     String         @id @default(cuid())
+  numero                 String         @unique
+  clientNom              String
+  clientTel              String
+  typeCommande           TypeCommande
+  tableId                String?
+  adresseLivraison       String?
+  statut                 StatutCommande @default(NOUVELLE)
+  statutPaiement         StatutPaiement @default(EN_ATTENTE)
+  modePaiement           ModePaiement
+  total                  Int
+  payment_reference      String?
+  payment_amount_expected Int?
+  payment_matched_sms    Json?
+  recuNumero             String?
+  recuUrl                String?
+  datePaiement           DateTime?
+  vendeurId              String?
+  vendeur                User?          @relation("VendeurCommandes", fields: [vendeurId], references: [id])
+  items                  OrderItem[]
+  createdAt              DateTime       @default(now())
+}
+
+model OrderItem {
+  id           String  @id @default(cuid())
+  orderId      String
+  order        Order   @relation(fields: [orderId], references: [id])
+  productId    String
+  quantite     Int
+  prixUnitaire Int
+}
+
+model Payment {
+  id          String         @id @default(cuid())
+  orderId     String         @unique
+  provider    String
+  reference   String?
+  statut      StatutPaiement
+  confirmePar String?
+  createdAt   DateTime       @default(now())
+}
+
+model Review {
+  id          String   @id @default(cuid())
+  orderId     String
+  note        Int
+  commentaire String?
+  prenom      String?
+  valide      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model Expense {
+  id        String   @id @default(cuid())
+  libelle   String
+  montant   Int
+  createdAt DateTime @default(now())
+}
+
+model SmsLog {
+  id              String    @id @default(cuid())
+  sender          String
+  message         String
+  receivedAt      DateTime
+  parsedAmount    Int?
+  parsedSender    String?
+  parsedBalance   Int?
+  previousBalance Int?
+  matchedOrderId  String?
+  status          SmsStatus @default(PENDING)
+  createdAt       DateTime  @default(now())
+}
+
+enum Role {
+  ADMIN
+  VENDEUR
+}
+
+enum TypeCommande {
+  LIVRAISON
+  RETRAIT
+  SUR_PLACE
+}
+
+enum StatutCommande {
+  NOUVELLE
+  ACCEPTEE
+  EN_PREPARATION
+  PRETE
+  TERMINEE
+}
+
+enum StatutPaiement {
+  EN_ATTENTE
+  PAYE
+  PAIEMENT_LIVRAISON
+  PAIEMENT_SUR_PLACE
+}
+
+enum ModePaiement {
+  FLOOZ
+  TMONEY
+  LIVRAISON
+  SUR_PLACE
+}
+
+enum SmsStatus {
+  PENDING
+  MATCHED
+  UNMATCHED
+  ERROR
+}
