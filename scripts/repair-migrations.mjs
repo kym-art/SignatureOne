@@ -67,40 +67,26 @@ function prepareDbEnv() {
 }
 
 /**
- * Les migrations/DML Prisma exigent une connexion DIRECTE ou SESSION — jamais
- * un pooler transactionnel (port 5432 / param pgbouncer). Si DIRECT_URL pointe
- * vers pooler.supabase.com, on la convertit vers une connexion DIRECTE
- * (db.<ref>.supabase.co:5432) en extrayant le ref du projet depuis le user
- * (postgres.<ref>_pooler). Échec d'extraction → repli session-mode (port 5434).
+ * Les migrations Prisma exigent une connexion DIRECTE ou en mode SESSION —
+ * jamais un pooler transactionnel (ports 6543/5432). Si DIRECT_URL pointe vers
+ * pooler.supabase.com, on bascule sur le mode SESSION (port 5434), qui reste
+ * joignable en IPv4 depuis Vercel et accepte DDL/advisory locks.
+ * (L'hôte direct db.<ref>.supabase.co est souvent IPv6-only désormais : à ne
+ * privilégier que si l'environnement de build supporte IPv6.)
  */
 function normalizeDirectUrlForMigrations() {
   const direct = process.env.DIRECT_URL || process.env.DATABASE_URL || '';
   if (!/pooler\.supabase\.com/i.test(direct)) return; // déjà directe ou autre hôte
 
-  let u;
   try {
-    u = new URL(direct);
-  } catch {
-    return;
-  }
-
-  const user = decodeURIComponent(u.username);
-  const refMatch = user.match(/^postgres\.([a-z0-9]+)(?:_pooler)?$/i);
-  if (refMatch) {
-    const ref = refMatch[1];
-    u.host = `db.${ref}.supabase.co`;
-    u.port = '5432';
-    u.searchParams.delete('pgbouncer');
-    process.env.DIRECT_URL = u.toString();
-    console.warn(`[ci-backend] DIRECT_URL pooler → connexion directe ${u.host}.`);
-    return;
-  }
-
-  if (/:5432([/?]|$)/.test(direct)) {
+    const u = new URL(direct);
     u.port = '5434';
-    u.searchParams.delete('pgbouncer');
+    u.searchParams.set('pgbouncer', 'true');
+    u.searchParams.set('connection_limit', '1');
     process.env.DIRECT_URL = u.toString();
-    console.warn(`[ci-backend] DIRECT_URL pooler (ref inconnu) → bascule session-mode ${u.host}.`);
+    console.warn(`[ci-backend] DIRECT_URL pooler → mode SESSION ${u.hostname}:5434 (compatible migrations).`);
+  } catch {
+    // URL illisible : on tentera avec l'URL d'origine
   }
 }
 
