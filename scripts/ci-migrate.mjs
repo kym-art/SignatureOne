@@ -172,6 +172,13 @@ if (serviceKey && supabaseUrl && process.env.ADMIN_PASSWORD) {
       '\n⚠️ [ci-backend] Une variable Supabase/ADMIN a une valeur placeholder : seed admin IGNORÉ (build non bloqué).\n'
     );
   } else {
+    // Le seed-admin.ts lit SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY (nus).
+    // Vercel fournit ces valeurs préfixées kym_ : on les propage dans les
+    // variables nues pour que le seed les trouve.
+    if (process.env.SUPABASE_URL === undefined) process.env.SUPABASE_URL = supabaseUrl.value;
+    if (process.env.SUPABASE_SERVICE_ROLE_KEY === undefined) {
+      process.env.SUPABASE_SERVICE_ROLE_KEY = serviceKey.value;
+    }
     run('npx tsx scripts/seed-admin.ts', 'Seed administrateur');
   }
 } else {
