@@ -67,27 +67,18 @@ function prepareDbEnv() {
 }
 
 /**
- * Les migrations Prisma exigent une connexion DIRECTE ou en mode SESSION —
- * jamais un pooler transactionnel (ports 6543/5432). Si DIRECT_URL pointe vers
- * pooler.supabase.com, on bascule sur le mode SESSION (port 5434), qui reste
- * joignable en IPv4 depuis Vercel et accepte DDL/advisory locks.
- * (L'hôte direct db.<ref>.supabase.co est souvent IPv6-only désormais : à ne
- * privilégier que si l'environnement de build supporte IPv6.)
+ * Connexion utilisée pour les migrations.
+ * Rappel Supabase Pooler : session = port 5432, transaction = port 6543.
+ * La DIRECT_URL fournie par l'intégration (kym_POSTGRES_URL_NON_POOLING) pointe
+ * déjà vers le pooler SESSION (5432) : on la laisse telle quelle. On ne réécrit
+ * JAMAIS le port (toute transformation vers une autre valeur est inopérante
+ * et casse la connexion, comme les tentatives 5434/ihôte direct déjà observées).
  */
 function normalizeDirectUrlForMigrations() {
   const direct = process.env.DIRECT_URL || process.env.DATABASE_URL || '';
-  if (!/pooler\.supabase\.com/i.test(direct)) return; // déjà directe ou autre hôte
-
-  try {
-    const u = new URL(direct);
-    u.port = '5434';
-    u.searchParams.set('pgbouncer', 'true');
-    u.searchParams.set('connection_limit', '1');
-    process.env.DIRECT_URL = u.toString();
-    console.warn(`[ci-backend] DIRECT_URL pooler → mode SESSION ${u.hostname}:5434 (compatible migrations).`);
-  } catch {
-    // URL illisible : on tentera avec l'URL d'origine
-  }
+  console.log(
+    `[ci-backend] Connexion migrations : ${direct.includes('pooler.supabase.com') ? 'pooler session :5432 (fournie telle quelle)' : 'directe (fournie telle quelle)'}.`
+  );
 }
 
 // --------------------------------------------------------------------------
