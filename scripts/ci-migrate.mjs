@@ -174,11 +174,17 @@ if (serviceKey && supabaseUrl && process.env.ADMIN_PASSWORD) {
   } else {
     // Le seed-admin.ts lit SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY (nus).
     // Vercel fournit ces valeurs préfixées kym_ : on les propage dans les
-    // variables nues pour que le seed les trouve.
-    if (process.env.SUPABASE_URL === undefined) process.env.SUPABASE_URL = supabaseUrl.value;
-    if (process.env.SUPABASE_SERVICE_ROLE_KEY === undefined) {
+    // variables nues pour que le seed les trouve. On écrase aussi TOUTE valeur
+    // vide (Vercel peut exposer la variable nue à « "" ») : un simple check
+    // `=== undefined` laisserait passer la chaîne vide, qui ferait échouer le
+    // seed malgré la présence des kym_*.
+    if (!process.env.SUPABASE_URL) process.env.SUPABASE_URL = supabaseUrl.value;
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
       process.env.SUPABASE_SERVICE_ROLE_KEY = serviceKey.value;
     }
+    console.log(
+      `[ci-backend] Seed admin : SUPABASE_URL ← ${supabaseUrl.key}, SUPABASE_SERVICE_ROLE_KEY ← ${serviceKey.key}`
+    );
     run('npx tsx scripts/seed-admin.ts', 'Seed administrateur');
   }
 } else {

@@ -39,6 +39,20 @@ function loadEnv(file = '.env'): void {
   }
 }
 
+/**
+ * Première variable d'environnement non vide, dans l'ordre donné.
+ * Ignore les valeurs absentes, « "" » ou composées d'espaces : Vercel peut
+ * exposer une variable nue à une chaîne vide qui, avec un simple `??`,
+ * masquerait la vraie valeur kym_* pourtant présente.
+ */
+function readEnv(...keys: string[]): string {
+  for (const key of keys) {
+    const value = process.env[key];
+    if (value && value.trim()) return value.trim();
+  }
+  return '';
+}
+
 function formatPhone(phone: string): string {
   const cleaned = phone.replace(/[\s\-()]/g, '');
   if (cleaned.startsWith('00')) return `+${cleaned.substring(2)}`;
@@ -49,17 +63,17 @@ function formatPhone(phone: string): string {
 async function main(): Promise<void> {
   loadEnv();
 
-  const url =
-    process.env.SUPABASE_URL ??
-    process.env.kym_SUPABASE_URL ??
-    process.env.NEXT_PUBLIC_kym_SUPABASE_URL ??
-    process.env.NEXT_PUBLIC_SUPABASE_URL ??
-    '';
-  const serviceKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ??
-    process.env.kym_SUPABASE_SERVICE_ROLE_KEY ??
-    process.env.kym_SUPABASE_SECRET_KEY ??
-    '';
+  const url = readEnv(
+    'SUPABASE_URL',
+    'kym_SUPABASE_URL',
+    'NEXT_PUBLIC_kym_SUPABASE_URL',
+    'NEXT_PUBLIC_SUPABASE_URL'
+  );
+  const serviceKey = readEnv(
+    'SUPABASE_SERVICE_ROLE_KEY',
+    'kym_SUPABASE_SERVICE_ROLE_KEY',
+    'kym_SUPABASE_SECRET_KEY'
+  );
   const telephone = formatPhone(process.env.ADMIN_TELEPHONE ?? '+22890000000');
   const password = process.env.ADMIN_PASSWORD ?? '';
 
