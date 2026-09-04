@@ -25,6 +25,7 @@
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { deployWithRepair } from './repair-migrations.mjs';
 
 function loadDotEnv(file) {
   const p = path.resolve(process.cwd(), file);
@@ -155,7 +156,15 @@ if (dbUrl) {
     } else {
       process.env.DIRECT_URL = dbUrl.value;
     }
-    run('npx prisma migrate deploy', 'Migrations Prisma');
+    deployWithRepair();
+    if (/pooler\.supabase\.com/.test(process.env.DIRECT_URL || '') && /:5432(\?|$)/.test(process.env.DIRECT_URL || '')) {
+      console.warn(
+        '\n⚠️ [ci-backend] DIRECT_URL pointe vers pooler.supabase.com sur le port 5432 (probablement un pooler\n' +
+          '   transactionnel, incompatible avec Prisma Migrate). Si les migrations échouent de façon répétée,\n' +
+          '   remplacez DIRECT_URL (ou kym_POSTGRES_URL_NON_POOLING) par une connexion SESSION (pooler:5434)\n' +
+          '   ou DIRECTE (db.<ref>.supabase.co:5432).\n'
+      );
+    }
   }
 } else {
   console.warn(
