@@ -66,6 +66,44 @@ function prepareDbEnv() {
   return false;
 }
 
+/**
+ * Les migrations/DML Prisma exigent une connexion DIRECTE ou SESSION — jamais
+ * un pooler transactionnel (port 5432 / param pgbouncer). Si DIRECT_URL pointe
+ * vers pooler.supabase.com, on la convertit vers une connexion DIRECTE
+ * (db.<ref>.supabase.co:5432) en extrayant le ref du projet depuis le user
+ * (postgres.<ref>_pooler). Échec d'extraction → repli session-mode (port 5434).
+ */
+function normalizeDirectUrlForMigrations() {
+  const direct = process.env.DIRECT_URL || process.env.DATABASE_URL || '';
+  if (!/pooler\.supabase\.com/i.test(direct)) return; // déjà directe ou autre hôte
+
+  let u;
+  try {
+    u = new URL(direct);
+  } catch {
+    return;
+  }
+
+  const user = decodeURIComponent(u.username);
+  const refMatch = user.match(/^postgres\.([a-z0-9]+)(?:_pooler)?$/i);
+  if (refMatch) {
+    const ref = refMatch[1];
+    u.host = `db.${ref}.supabase.co`;
+    u.port = '5432';
+    u.searchParams.delete('pgbouncer');
+    process.env.DIRECT_URL = u.toString();
+    console.warn(`[ci-backend] DIRECT_URL pooler → connexion directe ${u.host}.`);
+    return;
+  }
+
+  if (/:5432([/?]|$)/.test(direct)) {
+    u.port = '5434';
+    u.searchParams.delete('pgbouncer');
+    process.env.DIRECT_URL = u.toString();
+    console.warn(`[ci-backend] DIRECT_URL pooler (ref inconnu) → bascule session-mode ${u.host}.`);
+  }
+}
+
 // --------------------------------------------------------------------------
 // Exécution de commandes Prisma (sortie capturée, visible au log)
 // --------------------------------------------------------------------------
@@ -139,6 +177,7 @@ export function repairFailedMigrations(prismaOutput) {
 }
 
 export function deployWithRepair() {
+  normalizeDirectUrlForMigrations();
   const first = runCapture('npx prisma migrate deploy --schema prisma/schema.prisma', 'Migrations Prisma');
   if (first.ok) return { ok: true, repaired: [] };
 

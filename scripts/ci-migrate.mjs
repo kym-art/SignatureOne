@@ -157,7 +157,7 @@ if (dbUrl) {
       process.env.DIRECT_URL = dbUrl.value;
     }
     deployWithRepair();
-    if (/pooler\.supabase\.com/.test(process.env.DIRECT_URL || '') && /:5432(\?|$)/.test(process.env.DIRECT_URL || '')) {
+    if (/pooler\.supabase\.com/.test(process.env.DIRECT_URL || '') && /:5432([/?]|$)/.test(process.env.DIRECT_URL || '')) {
       console.warn(
         '\n⚠️ [ci-backend] DIRECT_URL pointe vers pooler.supabase.com sur le port 5432 (probablement un pooler\n' +
           '   transactionnel, incompatible avec Prisma Migrate). Si les migrations échouent de façon répétée,\n' +
