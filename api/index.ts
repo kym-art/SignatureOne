@@ -90,9 +90,14 @@ export default async function handler(req: any, res: any) {
   if (!cachedHandler) {
     try {
       cachedHandler = await bootstrapHandler();
-    } catch (err) {
+    } catch (err: any) {
       console.error('❌ [signature-one-backend] Échec du démarrage serverless:', err);
-      res.status(500).json({ message: 'API indisponible (configuration serveur manquante).' });
+      // Message explicite pour faciliter le diagnostic sur Vercel (logs + réponse).
+      res.status(500).json({
+        message: 'API indisponible : échec du démarrage du backend.',
+        erreur: err?.message || String(err),
+        aide: 'Vérifiez les variables d\'environnement Vercel (JWT_SECRET requis, kym_* Supabase).',
+      });
       return;
     }
   }
