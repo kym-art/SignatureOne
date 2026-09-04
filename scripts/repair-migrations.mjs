@@ -176,10 +176,12 @@ export function deployWithRepair() {
   throw new Error(
     `[ci-backend] Les migrations échouent encore après réparation.\n` +
       `Erreur exacte : ${detail}\n\n` +
-      `Vérifiez en priorité :\n` +
-      `  • DIRECT_URL (kym_POSTGRES_URL_NON_POOLING) doit être une connexion DIRECTE ou SESSION Supabase, ` +
-      `pas un pooler transactionnel : utilisez pooler.supabase.com:5434 ou db.<ref>.supabase.co:5432.\n` +
-      `  • L'utilisateur de la base doit être propriétaire des tables (privilèges pour CREATE POLICY / GRANT).`
+      `Pistes selon l'erreur SQL :\n` +
+      `  • 42703 « column X does not exist » : un identifiant non quoté est replié en minuscules par Postgres.\n` +
+      `    Les colonnes CamelCase doivent être entre guillemets dans tout GRANT/Policy (ex. "typeCommande").\n` +
+      `  • Privilèges insuffisants (CREATE POLICY / GRANT refusés) : l'utilisateur connecté doit être\n` +
+      `    propriétaire des tables ou disposer des droits superuser sur le schéma public.\n` +
+      `  • Connexion : la DIRECT_URL (kym_POSTGRES_URL_NON_POOLING) doit rester en pooler session (port 5432).`
   );
 }
 

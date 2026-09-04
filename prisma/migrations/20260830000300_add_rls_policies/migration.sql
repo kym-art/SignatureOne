@@ -77,9 +77,14 @@ CREATE POLICY "order_select_limited_public_track"
 -- Les données clients (clientNom, clientTel, adresseLivraison) et l'historique
 -- de rapprochement SMS (payment_matched_sms) ne sont PAS listées : elles
 -- restent inaccessibles à la clé anon.
-GRANT SELECT (id, numero, typeCommande, tableId, statut, statutPaiement,
-              modePaiement, total, recuNumero, recuUrl, datePaiement,
-              vendeurId, createdAt, payment_reference, payment_amount_expected)
+--
+-- IMPORTANT : chaque nom de colonne doit être entre guillemets. Postgres
+-- replie en minuscules les identifiants non quotés (typeCommande -> typecommande),
+-- ce qui faisait échouer cette migration en 42703.
+GRANT SELECT ("id", "numero", "typeCommande", "tableId", "statut",
+              "statutPaiement", "modePaiement", "total", "recuNumero",
+              "recuUrl", "datePaiement", "vendeurId", "createdAt",
+              "payment_reference", "payment_amount_expected")
   ON "Order" TO anon, authenticated;
 
 -- ----------------------------------------------------------------------------
