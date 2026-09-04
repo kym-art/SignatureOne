@@ -121,14 +121,14 @@ export function repairFailedMigrations(prismaOutput) {
   for (const name of failed) {
     const sqlFile = path.join(process.cwd(), 'scripts', 'repair', KNOWN_REPAIRS[name]);
     const cleanup = runCapture(
-      `npx prisma db execute --file "${sqlFile}"`,
+      `npx prisma db execute --schema prisma/schema.prisma --file "${sqlFile}"`,
       `Nettoyage DDL de « ${name} »`
     );
     if (!cleanup.ok) {
       throw new Error(`[repair] Nettoyage SQL de « ${name} » échoué. Détail : ${cleanup.output.slice(-700)}`);
     }
     const resolve = runCapture(
-      `npx prisma migrate resolve --rolled-back "${name}"`,
+      `npx prisma migrate resolve --schema prisma/schema.prisma --rolled-back "${name}"`,
       `Marquage « ${name} » rollbackée`
     );
     if (!resolve.ok) {
@@ -139,7 +139,7 @@ export function repairFailedMigrations(prismaOutput) {
 }
 
 export function deployWithRepair() {
-  const first = runCapture('npx prisma migrate deploy', 'Migrations Prisma');
+  const first = runCapture('npx prisma migrate deploy --schema prisma/schema.prisma', 'Migrations Prisma');
   if (first.ok) return { ok: true, repaired: [] };
 
   if (!hasP3009(first.output)) {
@@ -150,7 +150,7 @@ export function deployWithRepair() {
   const repaired = repairFailedMigrations(first.output);
   console.warn(`↳ Migration(s) réparée(s) : ${repaired.join(', ')} → relance du deploy…`);
 
-  const second = runCapture('npx prisma migrate deploy', 'Migrations Prisma (relance)');
+  const second = runCapture('npx prisma migrate deploy --schema prisma/schema.prisma', 'Migrations Prisma (relance)');
   if (second.ok) {
     console.log('\n✅ [ci-backend] Migrations appliquées après réparation.');
     return { ok: true, repaired };
