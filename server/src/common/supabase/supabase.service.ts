@@ -32,9 +32,30 @@ export class SupabaseService implements OnModuleInit {
     this.logger.log('✅ Client Supabase service_role initialisé.');
   }
 
-  /** Anon client, utilisé uniquement pour l'échange de credentials (login). */
+  /**
+   * Anon client, utilisé uniquement pour l'échange de credentials (login).
+   * Si la clé anon n'est pas injectée par la plateforme, on replie sur la clé
+   * service_role (côté serveur UNIQUEMENT, jamais exposée au navigateur) :
+   * elle est acceptée par l'API Auth pour vérifier des identifiants. Sans ce
+   * repli, `createClient(url, '')` jetterait une erreur brute → 500 opaque.
+   */
   get anonClient(): SupabaseClient {
-    return createClient(config.supabaseUrl, config.supabaseAnonKey, {
+    if (!config.supabaseUrl) {
+      throw new InternalServerErrorException(
+        'SUPABASE_URL non configurée côté serveur : authentification impossible.'
+      );
+    }
+    if (!config.supabaseAnonKey) {
+      if (!config.supabaseServiceRoleKey) {
+        throw new InternalServerErrorException(
+          'Aucune clé Supabase (anon ou service_role) configurée côté serveur : authentification impossible.'
+        );
+      }
+      this.logger.warn(
+        '⚠️ Clé anon Supabase absente : repli sur service_role pour la vérification login (serveur uniquement).'
+      );
+    }
+    return createClient(config.supabaseUrl, config.supabaseAnonKey || config.supabaseServiceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
   }
