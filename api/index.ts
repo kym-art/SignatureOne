@@ -23,12 +23,34 @@ import { bootstrapExpressApp } from '../server/dist/serverless';
 let cachedApp: ((req: unknown, res: unknown) => void) | null = null;
 
 export default async function handler(req: any, res: any) {
+  // Repli CORS manuel : le middleware cors de Nest n'existe que si le
+  // bootstrap a réussi. Sans ces en-têtes sur les réponses de repli, le
+  // navigateur masquerait la vraie erreur derrière une erreur CORS.
+  const origin = req?.headers?.origin;
+  const applyCorsHeaders = () => {
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Vary', 'Origin');
+    }
+  };
+
+  // Préflight : répondue ici même si l'app Nest n'est pas encore montée.
+  if (req.method === 'OPTIONS') {
+    applyCorsHeaders();
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+    res.status(204).end();
+    return;
+  }
+
   if (!cachedApp) {
     try {
       cachedApp = await bootstrapExpressApp();
     } catch (err: any) {
       console.error('❌ [signature-one-backend] Échec du démarrage serverless:', err);
       // Message explicite pour faciliter le diagnostic sur Vercel (logs + réponse).
+      applyCorsHeaders();
       res.status(500).json({
         message: 'API indisponible : échec du démarrage du backend.',
         erreur: err?.message || String(err),

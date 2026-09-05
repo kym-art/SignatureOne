@@ -49,12 +49,18 @@ async function createApp(): Promise<NestExpressApplication> {
 
   app.setGlobalPrefix('api');
 
-  // CORS : même origine par défaut (frontend + API réécrites sur le même
-  // domaine Vercel). CORS_ORIGIN reste supporté si l'API est appelée depuis
-  // un autre domaine.
-  const corsOrigin = process.env.CORS_ORIGIN?.split(',').map((o) => o.trim()).filter(Boolean);
+  // CORS : le frontend et l'API vivent sur le MÊME domaine Vercel (URL de
+  // déploiement unique, jamais connue à l'avance). Le JWT voyage dans un
+  // en-tête Authorization — jamais dans un cookie cross-site — CORS n'est
+  // donc pas une frontière de sécurité ici. On REFLETTE l'origine demandée :
+  // la valeur historique CORS_ORIGIN (« https://signature-one.vercel.app »)
+  // pointe vers un AUTRE projet Vercel ; avec une liste fixe qui ne contenait
+  // pas l'origine réellement déployée, le middleware cors omettait le header
+  // Access-Control-Allow-Origin et le navigateur affichait une erreur CORS
+  // masquant la vraie erreur serveur. Pour restreindre plus tard, posez
+  // CORS_ORIGIN avec la/les bonnes origines et utilisez un callback origin.
   app.enableCors({
-    origin: corsOrigin && corsOrigin.length > 0 ? (corsOrigin.length === 1 ? corsOrigin[0] : corsOrigin) : true,
+    origin: true, // reflète l'Origin de la requête
     credentials: true,
   });
 
