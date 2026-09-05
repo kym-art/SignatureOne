@@ -16,9 +16,10 @@
  */
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
+import { ExpressAdapter } from '@nestjs/platform-express';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import type { NextFunction, Request, Response } from 'express';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { AppModule } from './app.module';
 
 /** Instance Express de Nest : appelable directement avec (req, res) Node. */
@@ -38,7 +39,11 @@ async function createApp(): Promise<NestExpressApplication> {
     );
   }
 
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+  // Adaptateur Express fourni EXPLICITEMENT : @nestjs/platform-express est
+  // importé statiquement (donc présent dans le bundle tracé par Vercel), au
+  // lieu d'un require dynamique interne de Nest résolu à chaud au cold start.
+  const adapter = new ExpressAdapter();
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, adapter, {
     logger: ['error', 'warn', 'log'],
   });
 
@@ -54,12 +59,20 @@ async function createApp(): Promise<NestExpressApplication> {
   });
 
   // Rate-limiting global : 120 requêtes/minute/IP (identique au mode serveur).
-  // Sur Vercel serverless, l'IP client arrive dans l'en-tête x-forwarded-for
-  // (pas de socket TCP) : keyGenerator explicite requis.
-  const clientIp = (req: Request): string =>
-    (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-    req.ip ||
-    'ip-inconnue';
+  // Clé : l'IP client vient de x-forwarded-for (posé par l'edge Vercel — le
+  // runtime serverless n'expose pas forcément d'adresse socket). On normalise
+  // via ipKeyGenerator : express-rate-limit v8 exige ce helper pour IPv6
+  // (sinon validation ERR_ERL_KEY_GEN_IPV6) et son analyse statique signale
+  // tout keyGenerator référençant req.ip.
+  const clientIp = (req: Request): string => {
+    const raw = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim();
+    if (!raw) return 'ip-inconnue';
+    try {
+      return ipKeyGenerator(raw);
+    } catch {
+      return 'ip-inconnue';
+    }
+  };
   app.use(
     rateLimit({
       windowMs: 60_000,
@@ -82,6 +95,19 @@ async function createApp(): Promise<NestExpressApplication> {
   app.use('/api/reviews', (req: Request, res: Response, next: NextFunction) => {
     if (req.method === 'POST') return reviewCreateLimiter(req, res, next);
     next();
+  });
+
+  // Erreurs de MIDDLEWARE (hors routeurs Nest) : réponse JSON diagnosable au
+  // lieu d'un 500 opaque. Les erreurs de contrôleurs/guards restent gérées par
+  // le filtre d'exceptions de Nest (n'atteignent jamais ce handler).
+  app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
+    console.error('❌ [signature-one-backend] Erreur middleware:', err?.stack || err);
+    if (!res.headersSent) {
+      res.status(Number(err?.status) || 500).json({
+        message: 'Erreur interne du backend (middleware).',
+        erreur: err?.message || String(err),
+      });
+    }
   });
 
   await app.init();
