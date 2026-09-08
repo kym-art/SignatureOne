@@ -1,0 +1,15 @@
+node_modules
+**/node_modules
+.git
+.gitignore
+dist
+**/dist
+build
+coverage
+.env
+.env.*
+!.env.example
+bun.lock
+*.log
+.DS_Store
+api/

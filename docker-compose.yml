@@ -1,0 +1,79 @@
+# ============================================================================
+# Signature One — Stack locale « prod-like » (miroir du déploiement Vercel)
+#
+#   web     → http://localhost:3000  (nginx : dist Vite + proxy /api)
+#   api     → http://localhost:4000  (NestJS, /api/products, JWT, CORS)
+#   migrate → one-shot : rejoue scripts/ci-migrate.mjs (migrations + seed
+#             admin), l'étape pré-build Vercel. Lancer avec le profil setup :
+#             `docker compose --profile setup run --rm migrate`
+#
+# Les variables du fichier .env racine sont lues automatiquement par compose
+# (interpolation des build args) et injectées dans api/migrate via env_file.
+# ============================================================================
+
+name: signature-one
+
+services:
+  web:
+    image: signature-one/web
+    build:
+      context: .
+      target: web
+      args:
+        # Variables publiques inlinées au build (comme sur Vercel).
+        # `${VAR:-defaut}` : compose lit automatiquement le fichier .env.
+        VITE_API_URL: ${VITE_API_URL:-/api}
+        VITE_USE_MOCK_DATA: ${VITE_USE_MOCK_DATA:-}
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
+        VITE_CINETPAY_SITE_ID: ${VITE_CINETPAY_SITE_ID:-}
+        VITE_CINETPAY_API_KEY: ${VITE_CINETPAY_API_KEY:-}
+        VITE_CINETPAY_SANDBOX: ${VITE_CINETPAY_SANDBOX:-}
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+        NEXT_PUBLIC_kym_SUPABASE_URL: ${NEXT_PUBLIC_kym_SUPABASE_URL:-}
+        NEXT_PUBLIC_kym_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_kym_SUPABASE_PUBLISHABLE_KEY:-}
+    ports:
+      - "3000:80"
+    depends_on:
+      api:
+        condition: service_started
+    restart: unless-stopped
+
+  api:
+    image: signature-one/api
+    build:
+      context: .
+      target: api
+    env_file:
+      - .env
+    environment:
+      PORT_API: 4000
+      # CORS : origine du frontend local + l'URL Vercel historique.
+      # (Via le proxy nginx /api les requêtes sont same-origin : CORS n'est
+      #  utile que pour des appels directs vers :4000 depuis le navigateur.)
+      CORS_ORIGIN: "http://localhost:3000,https://signature-one.vercel.app"
+    ports:
+      - "4000:4000"
+    healthcheck:
+      # Liveness : toute réponse HTTP (même 404/500 métier sur les données)
+      # prouve que Nest écoute. Le 500 "Supabase non configuré" reste visible
+      # dans les appels réels — le conteneur, lui, est bien en vie.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/__liveness').then(()=>process.exit(0)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  # One-shot : pipeline base de données identique au build Vercel
+  # (prisma migrate deploy + seed admin, skip gracieux si creds absentes).
+  migrate:
+    image: signature-one/migrate
+    build:
+      context: .
+      target: migrate
+    env_file:
+      - .env
+    profiles: ["setup"]
+    restart: "no"
