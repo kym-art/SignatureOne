@@ -18,7 +18,7 @@
  * (ce paquet attend un événement Lambda API Gateway/Azure et lève « Unable to
  * determine event source based on event » sur des req/res Node → 500 partout).
  */
-import { bootstrapExpressApp } from '../server/dist/serverless';
+import { bootstrapExpressApp } from '../server/dist/serverless.js';
 
 let cachedApp: ((req: unknown, res: unknown) => void) | null = null;
 
