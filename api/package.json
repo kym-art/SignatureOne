@@ -1,6 +1,7 @@
 {
   "name": "signature-one-api",
   "version": "1.0.0",
+  "type": "module",
   "private": true,
   "description": "Dépendances de la Serverless Function Vercel (wrapper NestJS)",
   "dependencies": {
