@@ -44,6 +44,9 @@ export class ReviewsService {
     const { data, error } = await this.supabase.admin
       .from('Review')
       .insert({
+        // Id généré serveur : @default(cuid()) du schéma Prisma n'existe pas
+        // au niveau SQL (défaut applicatif du client Prisma uniquement).
+        id: `rev_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         orderId: body.orderId,
         note,
         commentaire,

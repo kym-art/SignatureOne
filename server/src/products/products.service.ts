@@ -25,9 +25,18 @@ export class ProductsService {
   }
 
   async create(body: Partial<Product>): Promise<Product> {
+    // Le schéma Prisma définit id via @default(cuid()) — un défaut APPLICATIF
+    // (généré par le client Prisma) et non SQL. Or ce service écrit via le
+    // client REST Supabase : sans id explicite, PostgREST rejette l'insert
+    // (« null value in column "id" »). Même pattern que OrdersService
+    // (ord_/it_) : l'id est généré côté serveur.
+    const payload = {
+      id: `prod_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      ...body,
+    };
     const { data, error } = await this.supabase.admin
       .from('Product')
-      .insert({ ...body })
+      .insert(payload)
       .select('*')
       .single();
     if (error) throw new BadRequestException(error.message);
