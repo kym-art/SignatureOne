@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { SupabaseService } from '../common/supabase/supabase.service';
+import { CreateReviewDto } from './reviews.dto';
 import { Review } from '../types';
 
 @Injectable()
@@ -22,25 +23,33 @@ export class ReviewsService {
     return (data || []) as Review[];
   }
 
-  async create(body: Partial<Review>): Promise<Review> {
+  async create(body: CreateReviewDto): Promise<Review> {
     // Endpoint public : validation stricte des champs (anti-spam / anti-abus),
-    // puis insertion TOUJOURS non validée et non mise en avant — la modération
-    // est a posteriori.
-    const note = Number(body?.note);
-    if (!Number.isInteger(note) || note < 1 || note > 5) {
-      throw new BadRequestException('La note doit être un entier entre 1 et 5.');
+    // puis insertion TOUJOURS non validée — la modération est a posteriori.
+    const commentaire = body?.commentaire ?? null;
+    const prenom = body?.prenom ?? null;
+
+    // Anti-spam serveur : la commande doit exister ET être TERMINEE, et un avis
+    // ne peut être soumis qu'une seule fois (le check frontend ne suffit pas).
+    const { data: order, error: orderErr } = await this.supabase.admin
+      .from('Order')
+      .select('id, statut')
+      .eq('id', body.orderId)
+      .maybeSingle();
+    if (orderErr) throw new BadRequestException(orderErr.message);
+    if (!order) throw new BadRequestException('Commande introuvable.');
+    if (order.statut !== 'TERMINEE') {
+      throw new BadRequestException("L'avis ne peut être soumis qu'après une commande terminée.");
     }
-    const commentaire = body?.commentaire != null ? String(body.commentaire) : null;
-    if (commentaire !== null && commentaire.length > 1000) {
-      throw new BadRequestException('Le commentaire ne doit pas dépasser 1000 caractères.');
+    const { data: existing } = await this.supabase.admin
+      .from('Review')
+      .select('id')
+      .eq('orderId', body.orderId)
+      .maybeSingle();
+    if (existing) {
+      throw new BadRequestException('Un avis a déjà été soumis pour cette commande.');
     }
-    const prenom = body?.prenom != null ? String(body.prenom) : null;
-    if (prenom !== null && (prenom.length === 0 || prenom.length > 100)) {
-      throw new BadRequestException('Le prénom doit contenir entre 1 et 100 caractères.');
-    }
-    if (!body?.orderId || typeof body.orderId !== 'string') {
-      throw new BadRequestException('La commande concernée (orderId) est requise.');
-    }
+
     const { data, error } = await this.supabase.admin
       .from('Review')
       .insert({
@@ -48,7 +57,7 @@ export class ReviewsService {
         // au niveau SQL (défaut applicatif du client Prisma uniquement).
         id: `rev_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         orderId: body.orderId,
-        note,
+        note: body.note,
         commentaire,
         prenom,
         valide: false,

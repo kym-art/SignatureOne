@@ -1,6 +1,3 @@
-import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
-import { config, isSupabaseServiceConfigured } from '../config/configuration';
-
 // Comptes mock locaux — utilisés UNIQUEMENT quand USE_MOCK_DATA=true (dév).
 // En production ils sont inaccessibles : le login se fait par Supabase Auth.
 interface MockVendor {

@@ -6,22 +6,19 @@ import {
   Patch,
   Post,
   Req,
-  UseGuards,
 } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { Public } from '../common/auth/decorators/public.decorator';
 import { Roles } from '../common/auth/decorators/roles.decorator';
-import { JwtAuthGuard } from '../common/auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../common/auth/guards/roles.guard';
-import { CreateOrderDto, DirectSaleDto } from './orders.dto';
+import { CreateOrderDto, DirectSaleDto, UpdateStatusDto, AssignVendorDto } from './orders.dto';
 import { JwtUserPayload } from '../common/auth/jwt.service';
 
 interface AuthedRequest {
   user: JwtUserPayload;
 }
 
+// Guards globaux via APP_GUARD (app.module) : pas besoin de @UseGuards ici.
 @Controller('orders')
-@UseGuards(JwtAuthGuard, RolesGuard)
 export class OrdersController {
   constructor(private readonly orders: OrdersService) {}
 
@@ -50,7 +47,7 @@ export class OrdersController {
   @Patch(':id/status')
   updateStatus(
     @Param('id') id: string,
-    @Body() body: { statut: string },
+    @Body() body: UpdateStatusDto,
     @Req() req: AuthedRequest,
   ) {
     return this.orders.updateStatus(id, body.statut, req.user);
@@ -73,7 +70,7 @@ export class OrdersController {
   /** Admin uniquement : assigner/réassigner un vendeur (body { vendeurId } ou { vendeurId: null }). */
   @Roles('ADMIN')
   @Patch(':id/assign')
-  assign(@Param('id') id: string, @Body() body: { vendeurId?: string | null }) {
+  assign(@Param('id') id: string, @Body() body: AssignVendorDto) {
     return this.orders.assignVendor(id, body?.vendeurId ?? null);
   }
 

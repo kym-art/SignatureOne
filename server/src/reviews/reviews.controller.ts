@@ -6,14 +6,11 @@ import {
   Param,
   Patch,
   Post,
-  UseGuards,
 } from '@nestjs/common';
 import { ReviewsService } from './reviews.service';
 import { Public } from '../common/auth/decorators/public.decorator';
 import { Roles } from '../common/auth/decorators/roles.decorator';
-import { JwtAuthGuard } from '../common/auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../common/auth/guards/roles.guard';
-import { Review } from '../types';
+import { CreateReviewDto, FeatureReviewDto } from './reviews.dto';
 
 /**
  * Les avis clients sont modérés par l'admin via le backend (service_role).
@@ -21,7 +18,6 @@ import { Review } from '../types';
  * Une ouverture en INSERT public pourra être ajoutée sur arbitrage.
  */
 @Controller('reviews')
-@UseGuards(JwtAuthGuard, RolesGuard)
 export class ReviewsController {
   constructor(private readonly reviews: ReviewsService) {}
 
@@ -40,7 +36,7 @@ export class ReviewsController {
   /** Public : soumission d'un avis client (créé non validé, modération a posteriori). */
   @Public()
   @Post()
-  create(@Body() body: Partial<Review>) {
+  create(@Body() body: CreateReviewDto) {
     return this.reviews.create(body);
   }
 
@@ -50,10 +46,10 @@ export class ReviewsController {
     return this.reviews.validate(id);
   }
 
-  /** Body optionnel : { misEnAvant, valide } — toggle ou masquage. */
+  /** Body optionnel : { valide } — publication ou masquage. */
   @Roles('ADMIN')
   @Patch(':id/feature')
-  feature(@Param('id') id: string, @Body() body: { misEnAvant?: boolean; valide?: boolean }) {
+  feature(@Param('id') id: string, @Body() body: FeatureReviewDto) {
     return this.reviews.feature(id, body ?? {});
   }
 

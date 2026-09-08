@@ -49,4 +49,3 @@ export class JwtAuthGuard implements CanActivate {
 }
 
 // Type léger pour éviter d'importer trop de dépendances.
-type ExecutionRequestContext = ExecutionContext;

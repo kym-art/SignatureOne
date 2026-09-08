@@ -40,6 +40,7 @@ export interface Order {
   createdAt: string;
   payment_reference?: string | null;
   payment_amount_expected?: number | null;
+  payment_matched_sms?: unknown;
 }
 
 export interface Product {

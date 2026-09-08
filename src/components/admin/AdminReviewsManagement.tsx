@@ -4,7 +4,6 @@ import {
   CheckCircle2,
   EyeOff,
   Trash2,
-  Sparkles,
   ShieldCheck,
   Clock,
   ThumbsUp,
@@ -65,7 +64,8 @@ export const AdminReviewsManagement: React.FC = () => {
 
   const pendingCount = reviews.filter((r) => !r.valide).length;
   const approvedCount = reviews.filter((r) => r.valide).length;
-  const featuredCount = reviews.filter((r) => r.valide && r.misEnAvant).length;
+  // Note : la « mise en avant » des avis (misEnAvant) a été retirée du schéma
+  // et de la base → pas de compteur dédié.
 
   const displayedReviews = reviews.filter((r) => {
     if (activeFilter === 'pending') return !r.valide;
@@ -98,10 +98,6 @@ export const AdminReviewsManagement: React.FC = () => {
           </span>
           <span className="bg-emerald-100 text-emerald-900 border border-emerald-300 px-3 py-1.5 rounded-xl font-bold">
             {approvedCount} validés
-          </span>
-          <span className="bg-[#1F3D2E] text-[#FAF3E8] px-3 py-1.5 rounded-xl font-bold flex items-center gap-1">
-            <Sparkles className="w-3.5 h-3.5 text-[#C9A24B]" />
-            <span>{featuredCount} à la Une</span>
           </span>
         </div>
       </div>
@@ -211,12 +207,6 @@ export const AdminReviewsManagement: React.FC = () => {
                       </span>
                     )}
 
-                    {rev.misEnAvant && (
-                      <span className="bg-[#1F3D2E] text-[#FAF3E8] px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
-                        <Sparkles className="w-2.5 h-2.5 text-[#C9A24B]" />
-                        <span>À la Une</span>
-                      </span>
-                    )}
                   </div>
                 </div>
 

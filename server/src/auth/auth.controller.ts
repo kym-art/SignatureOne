@@ -1,7 +1,26 @@
-import { Body, Controller, Get, HttpCode, Post, Request, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Post,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
+import { IsNotEmpty, IsString } from 'class-validator';
 import { AuthService } from './auth.service';
 import { Public } from '../common/auth/decorators/public.decorator';
 import { JwtAuthGuard } from '../common/auth/guards/jwt-auth.guard';
+
+export class LoginDto {
+  @IsString()
+  @IsNotEmpty()
+  telephone!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  motDePasse!: string;
+}
 
 @Controller('auth')
 export class AuthController {
@@ -16,7 +35,7 @@ export class AuthController {
   @Public()
   @Post('login')
   @HttpCode(200)
-  async login(@Body() body: { telephone: string; motDePasse: string }) {
+  async login(@Body() body: LoginDto) {
     return this.auth.login(body.telephone, body.motDePasse);
   }
 

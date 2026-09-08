@@ -6,17 +6,14 @@ import {
   Param,
   Patch,
   Post,
-  UseGuards,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { Public } from '../common/auth/decorators/public.decorator';
 import { Roles } from '../common/auth/decorators/roles.decorator';
-import { JwtAuthGuard } from '../common/auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../common/auth/guards/roles.guard';
-import { Product } from '../types';
+import { CreateProductDto, UpdateProductDto } from './products.dto';
 
+// Guards globaux via APP_GUARD (app.module).
 @Controller('products')
-@UseGuards(JwtAuthGuard, RolesGuard)
 export class ProductsController {
   constructor(private readonly products: ProductsService) {}
 
@@ -36,13 +33,13 @@ export class ProductsController {
   /** Admin : création/modif/suppression de produits. */
   @Roles('ADMIN')
   @Post()
-  create(@Body() body: Partial<Product>) {
+  create(@Body() body: CreateProductDto) {
     return this.products.create(body);
   }
 
   @Roles('ADMIN')
   @Patch(':id')
-  update(@Param('id') id: string, @Body() body: Partial<Product>) {
+  update(@Param('id') id: string, @Body() body: UpdateProductDto) {
     return this.products.update(id, body);
   }
 

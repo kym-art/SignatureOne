@@ -82,52 +82,39 @@ export class OrdersService {
     if (!input.items || input.items.length === 0) {
       throw new BadRequestException('Aucun article dans la commande.');
     }
-    if (!input.clientNom || !input.clientTel || !input.typeCommande || !input.modePaiement) {
-      throw new BadRequestException('Champs obligatoires manquants.');
-    }
 
-    // Le total est RÉCALCULÉ serveur (pas de confiance dans la valeur client).
-    let total = 0;
-    const rows = input.items.map((it) => {
-      const subtotal = it.prixUnitaire * it.quantite;
-      total += subtotal;
-      return {
-        id: `it_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        productId: it.productId,
-        quantite: it.quantite,
-        prixUnitaire: it.prixUnitaire,
-      };
-    });
+    // ✅ Le total est recalculé FROM SCRATCH depuis la table Product : le prix
+    // unitaire envoyé par le client est IGNORÉ (faille de sécurité sinon).
+    const { rows, total } = await this.resolvePricedItems(input.items);
 
-    const numero = await this.getNextOrderNumber();
-    const orderId = `ord_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const { orderId, numero } = await this.insertOrderWithRetry('ord', (id, num) => ({
+      id,
+      numero: num,
+      clientNom: input.clientNom,
+      clientTel: input.clientTel,
+      typeCommande: input.typeCommande as TypeCommande,
+      tableId: input.tableId ?? null,
+      adresseLivraison: input.adresseLivraison ?? null,
+      statut: 'NOUVELLE',
+      statutPaiement: this.paymentStatusForMode(input.modePaiement),
+      modePaiement: input.modePaiement as ModePaiement,
+      total,
+      payment_reference: input.payment_reference ?? null,
+      payment_amount_expected: total,
+      recuNumero: input.recuNumero ?? null,
+      recuUrl: input.recuUrl ?? null,
+      vendeurId: null,
+    }));
 
-    const { error: orderErr } = await this.supabase.admin
-      .from('Order')
-      .insert({
-        id: orderId,
-        numero,
-        clientNom: input.clientNom,
-        clientTel: input.clientTel,
-        typeCommande: input.typeCommande as TypeCommande,
-        tableId: input.tableId ?? null,
-        adresseLivraison: input.adresseLivraison ?? null,
-        statut: 'NOUVELLE',
-        statutPaiement: this.paymentStatusForMode(input.modePaiement),
-        modePaiement: input.modePaiement as ModePaiement,
-        total,
-        payment_reference: input.payment_reference ?? null,
-        payment_amount_expected: total,
-        recuNumero: input.recuNumero ?? null,
-        recuUrl: input.recuUrl ?? null,
-        vendeurId: null,
-      });
-    if (orderErr) throw new BadRequestException(orderErr.message);
-
+    // Atomicité : si l'insertion des items échoue, on ROLLBACK la commande
+    // (pas d'ordre orphelin sans articles).
     const { error: itemsErr } = await this.supabase.admin.from('OrderItem').insert(
       rows.map((r) => ({ ...r, orderId }))
     );
-    if (itemsErr) this.logger.warn(`Insertion OrderItem échec: ${itemsErr.message}`);
+    if (itemsErr) {
+      await this.supabase.admin.from('Order').delete().eq('id', orderId);
+      throw new BadRequestException(`Impossible d'enregistrer les articles: ${itemsErr.message}`);
+    }
 
     const created = await this.findOne(orderId);
     this.logger.log(`✅ Commande créée ${numero} (${total} FCFA)`);
@@ -139,12 +126,21 @@ export class OrdersService {
     if (!valid.includes(statut as StatutCommande)) {
       throw new BadRequestException('Statut invalide');
     }
-    if (user.role === 'VENDEUR') {
-      const order = await this.findOne(orderId);
-      if (order.vendeurId !== user.sub) {
-        throw new ForbiddenException('Cette commande n’est pas assignée à ce vendeur.');
-      }
+    const order = await this.findOne(orderId);
+    if (user.role === 'VENDEUR' && order.vendeurId !== user.sub) {
+      throw new ForbiddenException('Cette commande n’est pas assignée à ce vendeur.');
     }
+
+    // Idempotence : statut identique → rien à faire (permet les retries clients).
+    if (order.statut === statut) return order;
+
+    // Machine à états : seules les transitions « en avant » sont autorisées
+    // (pas de retour en arrière = pas d'incohérence de workflow).
+    const allowed = this.TRANSITIONS[order.statut] ?? [];
+    if (!allowed.includes(statut as StatutCommande)) {
+      throw new BadRequestException(`Transition invalide: ${order.statut} → ${statut}`);
+    }
+
     const { error } = await this.supabase.admin
       .from('Order')
       .update({ statut })
@@ -155,16 +151,23 @@ export class OrdersService {
 
   /** Validation manuelle d’un paiement (admin uniquement). */
   async confirmPayment(orderId: string): Promise<Order> {
+    const current = await this.findOne(orderId);
+    if (current.statutPaiement === 'PAYE') {
+      throw new ConflictException('Le paiement est déjà validé.');
+    }
+    // Le statut de commande n'est avancé que s'il est encore NOUVELLE
+    // (évite de faire reculer une commande déjà plus avancée).
+    const nextStatut = current.statut === 'NOUVELLE' ? 'ACCEPTEE' : current.statut;
     const { data, error } = await this.supabase.admin
       .from('Order')
       .update({
         statutPaiement: 'PAYE',
-        statut: 'ACCEPTEE',
+        statut: nextStatut,
         datePaiement: new Date().toISOString(),
       })
       .eq('id', orderId)
       // ⚠️ `.is()` de PostgREST n'accepte que null/booleen (is.EN_ATTENTE -> 400).
-      // `.eq()` + `.single()` : 0 ligne mise à jour => PGRST116 (voir ci-dessous).
+      // `.eq()` + `.single()` : 0 ligne mise à jour => PGRST116.
       .eq('statutPaiement', 'EN_ATTENTE')
       .select('*')
       .single();
@@ -172,9 +175,6 @@ export class OrdersService {
       throw new BadRequestException(error.message);
     }
     if (!data) {
-      // Aucune ligne EN_ATTENTE : paiement déjà validé ou commande inexistante.
-      const order = await this.findOne(orderId).catch(() => null);
-      if (!order) throw new NotFoundException('Commande introuvable');
       throw new ConflictException('Le paiement est déjà validé.');
     }
     return data as Order;
@@ -258,73 +258,131 @@ export class OrdersService {
     if (!input.items || input.items.length === 0) {
       throw new BadRequestException('Aucun article dans la vente.');
     }
-    if (!input.modePaiement) {
-      throw new BadRequestException('Mode de paiement manquant.');
-    }
 
-    // Total recalculé serveur (pas de confiance dans la valeur client).
-    let total = 0;
-    const rows = input.items.map((it) => {
-      const prix = it.prixUnitaire ?? 0;
-      total += prix * it.quantite;
-      return {
-        id: `it_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        productId: it.productId,
-        quantite: it.quantite,
-        prixUnitaire: prix,
-      };
-    });
-
-    const numero = await this.getNextOrderNumber();
-    const orderId = `ord_direct_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    // ✅ Prix et disponibilité recalculés depuis la table Product.
+    const { rows, total } = await this.resolvePricedItems(input.items);
     const now = new Date().toISOString();
 
-    const { error: orderErr } = await this.supabase.admin
-      .from('Order')
-      .insert({
-        id: orderId,
-        numero,
-        clientNom: input.clientNom?.trim() || 'Client Comptoir',
-        clientTel: input.clientTel?.trim() || '+228 90 00 00 00',
-        typeCommande: (input.typeCommande ?? 'RETRAIT') as TypeCommande,
-        tableId: input.tableId ?? null,
-        adresseLivraison: null,
-        statut: 'TERMINEE',
-        statutPaiement: 'PAYE',
-        modePaiement: input.modePaiement as ModePaiement,
-        total,
-        vendeurId: user.sub,
-        recuNumero: `REC-${numero.replace('SO-', '')}`,
-        recuUrl: `/recu/${numero}`,
-        datePaiement: now,
-        payment_amount_expected: total,
-      });
-    if (orderErr) throw new BadRequestException(orderErr.message);
+    const { orderId, numero } = await this.insertOrderWithRetry('ord_direct', (id, num) => ({
+      id,
+      numero: num,
+      clientNom: input.clientNom?.trim() || 'Client Comptoir',
+      clientTel: input.clientTel?.trim() || '+228 90 00 00 00',
+      typeCommande: (input.typeCommande ?? 'RETRAIT') as TypeCommande,
+      tableId: input.tableId ?? null,
+      adresseLivraison: null,
+      statut: 'TERMINEE',
+      statutPaiement: 'PAYE',
+      modePaiement: input.modePaiement as ModePaiement,
+      total,
+      vendeurId: user.sub,
+      recuNumero: `REC-${num.replace('SO-', '')}`,
+      recuUrl: `/recu/${num}`,
+      datePaiement: now,
+      payment_amount_expected: total,
+    }));
 
+    // Atomicité : échec d'insertion des items → rollback de la vente.
     const { error: itemsErr } = await this.supabase.admin
       .from('OrderItem')
       .insert(rows.map((r) => ({ ...r, orderId })));
-    if (itemsErr) this.logger.warn(`Insertion OrderItem (vente directe) échec: ${itemsErr.message}`);
+    if (itemsErr) {
+      await this.supabase.admin.from('Order').delete().eq('id', orderId);
+      throw new BadRequestException(`Impossible d'enregistrer les articles: ${itemsErr.message}`);
+    }
 
     const created = await this.findOne(orderId);
     this.logger.log(`✅ Vente directe ${numero} (${total} FCFA) par ${user.sub}`);
     return created;
   }
 
-  private async getNextOrderNumber(): Promise<string> {
+  /**
+   * Recalcule le prix de chaque ligne depuis la table Product (source de
+   * vérité). Vérifie l'existence, l'activité et la disponibilité du produit.
+   * Le prix unitaire client est ignoré.
+   */
+  private async resolvePricedItems(
+    items: { productId: string; quantite: number }[]
+  ): Promise<{ rows: Omit<OrderItem, 'orderId'>[]; total: number }> {
+    const ids = [...new Set(items.map((it) => it.productId))];
     const { data, error } = await this.supabase.admin
-      .from('Order')
-      .select('numero')
-      .order('numero', { ascending: false })
-      .limit(1);
+      .from('Product')
+      .select('id, prix, disponible, actif')
+      .in('id', ids);
+    if (error) {
+      throw new BadRequestException(`Erreur lecture produits: ${error.message}`);
+    }
+    const byId = new Map<string, { prix: number; disponible: boolean; actif: boolean }>(
+      ((data ?? []) as { id: string; prix: number; disponible: boolean; actif: boolean }[]).map(
+        (p) => [p.id, p]
+      )
+    );
+
+    const rows: Omit<OrderItem, 'orderId'>[] = [];
+    let total = 0;
+    for (const it of items) {
+      const prod = byId.get(it.productId);
+      if (!prod) throw new BadRequestException(`Produit introuvable: ${it.productId}`);
+      if (!prod.actif || !prod.disponible) {
+        throw new BadRequestException(`Produit indisponible: ${it.productId}`);
+      }
+      if (typeof prod.prix !== 'number' || prod.prix <= 0) {
+        throw new BadRequestException(`Prix invalide pour le produit ${it.productId}`);
+      }
+      total += prod.prix * it.quantite;
+      rows.push({
+        id: `it_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        productId: it.productId,
+        quantite: it.quantite,
+        prixUnitaire: prod.prix,
+      });
+    }
+    return { rows, total };
+  }
+
+  /**
+   * Insère une commande avec numéro SO-XXXX. En cas de violation d'unicité du
+   * numéro (concurrence), re-génère un numéro et re-tente (max 3 essais).
+   */
+  private async insertOrderWithRetry(
+    prefix: 'ord' | 'ord_direct',
+    buildPayload: (orderId: string, numero: string) => Record<string, unknown>
+  ): Promise<{ orderId: string; numero: string }> {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const numero = await this.getNextOrderNumber();
+      const orderId = `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      const { error } = await this.supabase.admin.from('Order').insert(buildPayload(orderId, numero));
+      if (!error) return { orderId, numero };
+      // Code 23505 = unique_violation : un autre process a pris le même numéro.
+      if (error.code === '23505' && /numero/i.test(error.message)) continue;
+      throw new BadRequestException(error.message);
+    }
+    throw new ConflictException('Conflit de numéro de commande. Veuillez réessayer.');
+  }
+
+  /** Transitions de statut autorisées (machine à états, sens avant uniquement). */
+  private readonly TRANSITIONS: Record<StatutCommande, StatutCommande[]> = {
+    NOUVELLE: ['ACCEPTEE', 'EN_PREPARATION'],
+    ACCEPTEE: ['EN_PREPARATION', 'PRETE', 'TERMINEE'],
+    EN_PREPARATION: ['PRETE', 'TERMINEE'],
+    PRETE: ['TERMINEE'],
+    TERMINEE: [],
+  };
+
+  private async getNextOrderNumber(): Promise<string> {
+    // Lecture de tous les numéros puis max numérique : évite le tri
+    // lexicographique (SO-10000 < SO-9999) et calcule le vrai max.
+    const { data, error } = await this.supabase.admin.from('Order').select('numero').limit(100000);
     if (error) {
       this.logger.warn(`getNextOrderNumber fallback: ${error.message}`);
-      return padNum(Date.now());
+      return padNum(1);
     }
-    const last = (data && data.length > 0 ? data[0].numero : null) as string | null;
-    if (!last || !/^SO-\d+$/.test(last)) return padNum(1);
-    const n = parseInt(last.replace('SO-', ''), 10) + 1;
-    return padNum(n);
+    let max = 0;
+    for (const row of (data ?? []) as { numero?: string | null }[]) {
+      const m = /^SO-(\d+)$/.exec(row.numero ?? '');
+      if (m) max = Math.max(max, parseInt(m[1], 10));
+    }
+    return padNum(max + 1);
   }
 }
 
