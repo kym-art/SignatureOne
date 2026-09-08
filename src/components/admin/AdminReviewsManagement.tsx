@@ -19,7 +19,6 @@ import {
   getFeaturedReviews,
   approveReview,
   hideReview,
-  toggleFeatureReview,
   deleteReview,
   subscribeReviews
 } from '../../lib/reviews';
@@ -50,15 +49,6 @@ export const AdminReviewsManagement: React.FC = () => {
       setFeedback({ type: 'success', message: 'Avis masqué de la vue publique.' });
     } else {
       setFeedback({ type: 'error', message: res.error || 'Erreur lors du masquage.' });
-    }
-  };
-
-  const handleToggleFeature = async (id: string) => {
-    const res = await toggleFeatureReview(id);
-    if (res.success) {
-      setFeedback({ type: 'success', message: "Statut de mise en avant sur l'accueil modifié." });
-    } else {
-      setFeedback({ type: 'error', message: res.error || 'Impossible de mettre en avant cet avis.' });
     }
   };
 
@@ -275,20 +265,6 @@ export const AdminReviewsManagement: React.FC = () => {
                   >
                     <EyeOff className="w-3.5 h-3.5" />
                     <span>Masquer</span>
-                  </button>
-                )}
-
-                {rev.valide && (
-                  <button
-                    onClick={() => handleToggleFeature(rev.id)}
-                    className={`text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors flex items-center gap-1 cursor-pointer ${
-                      rev.misEnAvant
-                        ? 'bg-[#1F3D2E] text-[#FAF3E8]'
-                        : 'bg-[#FAF3E8] text-[#1F3D2E] border border-[#C9A24B]/40 hover:bg-amber-100'
-                    }`}
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-[#C9A24B]" />
-                    <span>{rev.misEnAvant ? 'Retirer de la Une' : 'Mettre à la Une'}</span>
                   </button>
                 )}
 

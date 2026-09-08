@@ -155,7 +155,7 @@ export class OrdersService {
 
   /** Validation manuelle d’un paiement (admin uniquement). */
   async confirmPayment(orderId: string): Promise<Order> {
-    const { error } = await this.supabase.admin
+    const { data, error } = await this.supabase.admin
       .from('Order')
       .update({
         statutPaiement: 'PAYE',
@@ -163,14 +163,21 @@ export class OrdersService {
         datePaiement: new Date().toISOString(),
       })
       .eq('id', orderId)
-      .is('statutPaiement', 'EN_ATTENTE');
-    if (error) {
-      if (/0 rows/.test(error.message) || error.code === '204') {
-        throw new ConflictException('Le paiement est déjà validé.');
-      }
+      // ⚠️ `.is()` de PostgREST n'accepte que null/booleen (is.EN_ATTENTE -> 400).
+      // `.eq()` + `.single()` : 0 ligne mise à jour => PGRST116 (voir ci-dessous).
+      .eq('statutPaiement', 'EN_ATTENTE')
+      .select('*')
+      .single();
+    if (error && error.code !== 'PGRST116') {
       throw new BadRequestException(error.message);
     }
-    return this.findOne(orderId);
+    if (!data) {
+      // Aucune ligne EN_ATTENTE : paiement déjà validé ou commande inexistante.
+      const order = await this.findOne(orderId).catch(() => null);
+      if (!order) throw new NotFoundException('Commande introuvable');
+      throw new ConflictException('Le paiement est déjà validé.');
+    }
+    return data as Order;
   }
 
   /**
@@ -190,16 +197,19 @@ export class OrdersService {
       .eq('statut', 'NOUVELLE')
       .select('*')
       .single();
-    if (error) {
-      if (/0 rows/.test(error.message)) {
-        const existing = await this.findOne(orderId).catch(() => null);
-        if (existing && existing.vendeurId) {
-          throw new ConflictException('Cette commande est déjà prise en charge.');
-        }
-      }
+    // PGRST116 = aucune ligne mise à jour (transaction déjà prise ou commande absente).
+    if (error && error.code !== 'PGRST116') {
       throw new BadRequestException(error.message);
     }
-    if (!data) throw new ConflictException('Cette commande est déjà prise en charge.');
+    if (!data) {
+      const existing = await this.findOne(orderId).catch(() => null);
+      if (!existing) throw new NotFoundException('Commande introuvable');
+      throw new ConflictException(
+        existing.vendeurId
+          ? 'Cette commande est déjà prise en charge.'
+          : "Cette commande n'est plus au statut NOUVELLE."
+      );
+    }
     return data as Order;
   }
 

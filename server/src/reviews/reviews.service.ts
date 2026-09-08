@@ -52,7 +52,6 @@ export class ReviewsService {
         commentaire,
         prenom,
         valide: false,
-        misEnAvant: false,
       })
       .select('*')
       .single();
@@ -61,20 +60,20 @@ export class ReviewsService {
   }
 
   async validate(id: string): Promise<Review> {
-    const { data, error } = await this.supabase.admin.from('Review').update({ valide: true, misEnAvant: false }).eq('id', id).select('*').single();
+    const { data, error } = await this.supabase.admin.from('Review').update({ valide: true }).eq('id', id).select('*').single();
     if (error) throw new NotFoundException(error.message);
     return data as Review;
   }
 
   async feature(id: string, patch: { misEnAvant?: boolean; valide?: boolean } = {}): Promise<Review> {
-    // Permet : mise en avant (misEnAvant: true), retrait (misEnAvant: false),
-    // ou masquage complet (misEnAvant: false + valide: false).
-    const update: { valide?: boolean; misEnAvant?: boolean } = {};
-    if (patch.misEnAvant !== undefined) update.misEnAvant = patch.misEnAvant;
+    // ⚠️ La colonne Review.misEnAvant n'existe ni dans le schéma Prisma ni en
+    // base (résidu retiré des migrations) : elle n'est PAS persistable.
+    // Seul `valide` est persistant ; `misEnAvant` est ignoré (compat anciens clients).
+    const update: { valide?: boolean } = {};
     if (patch.valide !== undefined) update.valide = patch.valide;
     if (Object.keys(update).length === 0) {
+      // Cas par défaut historique (« mettre en avant ») → rend l'avis validé.
       update.valide = true;
-      update.misEnAvant = true;
     }
     const { data, error } = await this.supabase.admin.from('Review').update(update).eq('id', id).select('*').single();
     if (error) throw new NotFoundException(error.message);

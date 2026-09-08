@@ -89,7 +89,9 @@ export function getApprovedReviews(): Review[] {
 }
 
 export function getFeaturedReviews(): Review[] {
-  return getAllReviews().filter((r) => r.valide && r.misEnAvant);
+  // Note : Review.misEnAvant n'existe plus (schéma + DB) → tous les avis
+  // publiés sont exposés ; le filtrage "en avant" n'a plus de colonne.
+  return getAllReviews().filter((r) => r.valide);
 }
 
 export function getPendingReviews(): Review[] {
@@ -180,15 +182,13 @@ export async function hideReview(id: string): Promise<{ success: boolean; error?
 
   if (isMockDataEnabled) {
     all[index].valide = false;
-    all[index].misEnAvant = false;
     saveReviews(all);
     return { success: true };
   }
 
   try {
-    await apiFetch<Review>(`/reviews/${id}/feature`, { method: 'PATCH', body: { misEnAvant: false, valide: false } });
+    await apiFetch<Review>(`/reviews/${id}/feature`, { method: 'PATCH', body: { valide: false } });
     all[index].valide = false;
-    all[index].misEnAvant = false;
     saveReviews(all);
     return { success: true };
   } catch (e) {
@@ -198,6 +198,13 @@ export async function hideReview(id: string): Promise<{ success: boolean; error?
 }
 
 export async function toggleFeatureReview(id: string): Promise<{ success: boolean; error?: string }> {
+  // ⚠️ La mise en avant des avis (Review.misEnAvant) a été retirée du schéma
+  // Prisma et de la base : la fonctionnalité n'est plus disponible en mode
+  // backend. Mode mock inchangé (périmètre démo uniquement).
+  if (!isMockDataEnabled) {
+    return { success: false, error: 'La mise en avant des avis n\'est plus disponible.' };
+  }
+
   const all = getAllReviews();
   const index = all.findIndex((r) => r.id === id);
   if (index === -1) return { success: false, error: 'Avis introuvable.' };
@@ -207,22 +214,9 @@ export async function toggleFeatureReview(id: string): Promise<{ success: boolea
   }
 
   const target = !all[index].misEnAvant;
-
-  if (isMockDataEnabled) {
-    all[index].misEnAvant = target;
-    saveReviews(all);
-    return { success: true };
-  }
-
-  try {
-    await apiFetch<Review>(`/reviews/${id}/feature`, { method: 'PATCH', body: { misEnAvant: target } });
-    all[index].misEnAvant = target;
-    saveReviews(all);
-    return { success: true };
-  } catch (e) {
-    const message = e instanceof ApiError ? e.message : 'Erreur lors de la mise en avant de l\'avis.';
-    return { success: false, error: message };
-  }
+  all[index].misEnAvant = target;
+  saveReviews(all);
+  return { success: true };
 }
 
 export async function deleteReview(id: string): Promise<{ success: boolean; error?: string }> {
