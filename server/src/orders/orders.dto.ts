@@ -6,7 +6,10 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Max,
+  MaxLength,
   Min,
+  ArrayMaxSize,
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
@@ -28,6 +31,7 @@ export class OrderItemDto {
 
   @IsInt()
   @Min(1)
+  @Max(9999)
   quantite!: number;
 }
 
@@ -36,10 +40,12 @@ export class DirectSaleItemDto extends OrderItemDto {}
 export class CreateOrderDto {
   @IsString()
   @IsNotEmpty()
+  @MaxLength(120)
   clientNom!: string;
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(30)
   clientTel!: string;
 
   @IsIn(TYPE_COMMANDE_VALUES)
@@ -47,10 +53,12 @@ export class CreateOrderDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(60)
   tableId?: string | null;
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
   adresseLivraison?: string | null;
 
   @IsIn(MODE_PAIEMENT_VALUES)
@@ -58,17 +66,21 @@ export class CreateOrderDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   payment_reference?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(120)
   recuNumero?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
   recuUrl?: string;
 
   @IsArray()
+  @ArrayMaxSize(50)
   @ValidateNested({ each: true })
   @Type(() => OrderItemDto)
   items!: OrderItemDto[];
@@ -77,10 +89,12 @@ export class CreateOrderDto {
 export class DirectSaleDto {
   @IsOptional()
   @IsString()
+  @MaxLength(120)
   clientNom?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(30)
   clientTel?: string;
 
   @IsOptional()
@@ -89,12 +103,14 @@ export class DirectSaleDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(60)
   tableId?: string | null;
 
   @IsIn(MODE_PAIEMENT_VALUES)
   modePaiement!: ModePaiement;
 
   @IsArray()
+  @ArrayMaxSize(50)
   @ValidateNested({ each: true })
   @Type(() => DirectSaleItemDto)
   items!: DirectSaleItemDto[];

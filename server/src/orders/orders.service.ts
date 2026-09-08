@@ -116,6 +116,15 @@ export class OrdersService {
       throw new BadRequestException(`Impossible d'enregistrer les articles: ${itemsErr.message}`);
     }
 
+    // Décrémente le stock des produits vendus (une seule fois par produit).
+    const qtyByProduct = new Map<string, number>();
+    for (const r of rows) {
+      qtyByProduct.set(r.productId, (qtyByProduct.get(r.productId) ?? 0) + r.quantite);
+    }
+    for (const [productId, qte] of qtyByProduct) {
+      await this.decrementStock(productId, qte);
+    }
+
     const created = await this.findOne(orderId);
     this.logger.log(`✅ Commande créée ${numero} (${total} FCFA)`);
     return created;
@@ -166,9 +175,11 @@ export class OrdersService {
         datePaiement: new Date().toISOString(),
       })
       .eq('id', orderId)
-      // ⚠️ `.is()` de PostgREST n'accepte que null/booleen (is.EN_ATTENTE -> 400).
-      // `.eq()` + `.single()` : 0 ligne mise à jour => PGRST116.
-      .eq('statutPaiement', 'EN_ATTENTE')
+      // ⚠️ Les commandes LIVRAISON/SUR_PLACE démarrent à PAIEMENT_LIVRAISON /
+      // PAIEMENT_SUR_PLACE (voir paymentStatusForMode), PAS à EN_ATTENTE :
+      // un `.eq('statutPaiement', 'EN_ATTENTE')` matcherait 0 ligne et refuserait
+      // à tort leur confirmation. Verrou optimiste : « pas encore PAYE ».
+      .not('statutPaiement', 'eq', 'PAYE')
       .select('*')
       .single();
     if (error && error.code !== 'PGRST116') {
@@ -291,6 +302,15 @@ export class OrdersService {
       throw new BadRequestException(`Impossible d'enregistrer les articles: ${itemsErr.message}`);
     }
 
+    // Décrémente le stock des produits vendus (une seule fois par produit).
+    const qtyByProduct = new Map<string, number>();
+    for (const r of rows) {
+      qtyByProduct.set(r.productId, (qtyByProduct.get(r.productId) ?? 0) + r.quantite);
+    }
+    for (const [productId, qte] of qtyByProduct) {
+      await this.decrementStock(productId, qte);
+    }
+
     const created = await this.findOne(orderId);
     this.logger.log(`✅ Vente directe ${numero} (${total} FCFA) par ${user.sub}`);
     return created;
@@ -307,15 +327,24 @@ export class OrdersService {
     const ids = [...new Set(items.map((it) => it.productId))];
     const { data, error } = await this.supabase.admin
       .from('Product')
-      .select('id, prix, disponible, actif')
+      .select('id, prix, disponible, actif, quantiteRestante')
       .in('id', ids);
     if (error) {
       throw new BadRequestException(`Erreur lecture produits: ${error.message}`);
     }
-    const byId = new Map<string, { prix: number; disponible: boolean; actif: boolean }>(
-      ((data ?? []) as { id: string; prix: number; disponible: boolean; actif: boolean }[]).map(
-        (p) => [p.id, p]
-      )
+    const byId = new Map<
+      string,
+      { prix: number; disponible: boolean; actif: boolean; quantiteRestante: number | null }
+    >(
+      (
+        (data ?? []) as {
+          id: string;
+          prix: number;
+          disponible: boolean;
+          actif: boolean;
+          quantiteRestante: number | null;
+        }[]
+      ).map((p) => [p.id, p])
     );
 
     const rows: Omit<OrderItem, 'orderId'>[] = [];
@@ -325,6 +354,10 @@ export class OrdersService {
       if (!prod) throw new BadRequestException(`Produit introuvable: ${it.productId}`);
       if (!prod.actif || !prod.disponible) {
         throw new BadRequestException(`Produit indisponible: ${it.productId}`);
+      }
+      // Stock suivi et épuisé → refuser (évite une survente silencieuse).
+      if (prod.quantiteRestante !== null && prod.quantiteRestante <= 0) {
+        throw new BadRequestException(`Produit épuisé: ${it.productId}`);
       }
       if (typeof prod.prix !== 'number' || prod.prix <= 0) {
         throw new BadRequestException(`Prix invalide pour le produit ${it.productId}`);
@@ -338,6 +371,34 @@ export class OrdersService {
       });
     }
     return { rows, total };
+  }
+
+  /**
+   * Décrémente le stock (quantiteRestante) après une vente confirmée.
+   * - stock non suivi (null) → rien à faire (vente illimitée).
+   * - décrément contraint par `.gte('quantiteRestante', qte)` : si le stock a
+   *   bougé entre-temps (0 ligne), on log un avertissement sans casser l'ordre.
+   * À 0 → le produit passe indisponible dans le catalogue.
+   */
+  private async decrementStock(productId: string, quantite: number): Promise<void> {
+    const { data: prod, error: readErr } = await this.supabase.admin
+      .from('Product')
+      .select('quantiteRestante')
+      .eq('id', productId)
+      .maybeSingle();
+    if (readErr || !prod) {
+      if (readErr) this.logger.warn(`decrementStock lecture ${productId}: ${readErr.message}`);
+      return;
+    }
+    const current = (prod as { quantiteRestante: number | null }).quantiteRestante;
+    if (current === null || current === undefined) return; // stock non suivi
+    const next = Math.max(0, current - quantite);
+    const { error: upErr } = await this.supabase.admin
+      .from('Product')
+      .update({ quantiteRestante: next, disponible: next > 0 })
+      .eq('id', productId)
+      .gte('quantiteRestante', quantite);
+    if (upErr) this.logger.warn(`decrementStock ${productId}: ${upErr.message}`);
   }
 
   /**
@@ -369,9 +430,25 @@ export class OrdersService {
     TERMINEE: [],
   };
 
+  /**
+   * Numéro SO-XXXX : calculé par PostgreSQL (fonction next_order_number(), voir
+   * prisma/migrations/..._secure_orders) → O(1) au lieu de scanner des milliers
+   * de lignes. Repli automatique sur un scan mémoire si le RPC n'est pas encore
+   * déployé en base (ex. environnement non migré).
+   */
   private async getNextOrderNumber(): Promise<string> {
-    // Lecture de tous les numéros puis max numérique : évite le tri
-    // lexicographique (SO-10000 < SO-9999) et calcule le vrai max.
+    try {
+      const { data, error } = await this.supabase.admin.rpc('next_order_number');
+      if (!error && typeof data === 'string' && /^SO-\d+$/.test(data)) {
+        return data;
+      }
+      this.logger.warn(
+        `getNextOrderNumber RPC indisponible (${error?.message ?? 'réponse invalide'}) — fallback scan.`
+      );
+    } catch (e) {
+      this.logger.warn(`getNextOrderNumber RPC erreur: ${(e as Error)?.message} — fallback scan.`);
+    }
+    // Fallback : max numérique sur tous les numéros (rendu robuste au-delà de 9999).
     const { data, error } = await this.supabase.admin.from('Order').select('numero').limit(100000);
     if (error) {
       this.logger.warn(`getNextOrderNumber fallback: ${error.message}`);

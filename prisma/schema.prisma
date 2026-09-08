@@ -85,7 +85,7 @@ model Payment {
 
 model Review {
   id          String   @id @default(cuid())
-  orderId     String
+  orderId     String   @unique
   note        Int
   commentaire String?
   prenom      String?
