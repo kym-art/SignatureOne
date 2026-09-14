@@ -1,11 +1,22 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join, extname } from 'node:path';
+import { tmpdir } from 'node:os';
 
 @Injectable()
 export class UploadsService {
   private readonly logger = new Logger(UploadsService.name);
-  private readonly UPLOAD_DIR = join(process.cwd(), 'uploads', 'product-images');
+  /**
+   * Dossier d'upload.
+   * - Sur Vercel (filesystem en lecture seule sauf /tmp), on écrit dans
+   *   /tmp/uploads/product-images : les fichiers ne survivent pas aux
+   *   redémarrages, mais l'API ne crashe pas au démarrage ni à l'upload.
+   * - En local/dev, on écrit dans <cwd>/uploads/product-images.
+   */
+  private readonly UPLOAD_DIR =
+    process.env.VERCEL === '1' || process.env.AWS_LAMBDA_FUNCTION_NAME
+      ? join(tmpdir(), 'uploads', 'product-images')
+      : join(process.cwd(), 'uploads', 'product-images');
   private readonly MAX_BYTES = 1024 * 1024; // 1 Mo max
   private readonly BASE_URL = '/uploads/product-images';
 

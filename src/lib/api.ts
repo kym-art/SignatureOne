@@ -5,9 +5,20 @@
  * navigateur pour les actions privilégiées (voir audit sécurité).
  */
 
+const configuredApiBase: string =
+  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_URL) || '';
+
+/**
+ * Base URL de l'API.
+ * - Si VITE_API_URL est défini au build (Vercel), on l'utilise.
+ * - Sinon, dans le navigateur on utilise '/api' (same-origin via les
+ *   rewrites Vercel) au lieu de 'http://localhost:4000/api' qui est
+ *   injoignable en production et cassait le login admin.
+ * - En Node/SSR on garde le fallback localhost pour le dev local.
+ */
 export const API_BASE: string =
-  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_URL) ||
-  'http://localhost:4000/api';
+  configuredApiBase ||
+  (typeof window !== 'undefined' ? '/api' : 'http://localhost:4000/api');
 
 export class ApiError extends Error {
   status: number;
