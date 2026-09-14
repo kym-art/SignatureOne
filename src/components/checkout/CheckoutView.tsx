@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft,
   ShoppingBag,
@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import { useCart } from '../../lib/CartContext';
 import { createOrder } from '../../lib/orders';
+import { getStoreStatusCached, subscribeStoreStatus, isOpenNow } from '../../lib/store-settings';
+import { StoreClosedNotice } from '../common/StoreStatusBanner';
 import { TypeCommande, ModePaiement, Order } from '../../types';
 
 interface CheckoutViewProps {
@@ -46,6 +48,9 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
 }) => {
   const { items, totalAmount, totalCount, clearCart } = useCart();
 
+  // État boutique (ouvert/fermé) — bloque la commande si fermé.
+  const [storeStatus, setStoreStatus] = useState(getStoreStatusCached());
+
   // Customer Form State
   const [nom, setNom] = useState<string>('');
   const [prenom, setPrenom] = useState<string>('');
@@ -73,6 +78,11 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Suivi temps réel du statut boutique (ouvert/fermé) — backend.
+  useEffect(() => {
+    return subscribeStoreStatus((s) => setStoreStatus(s));
+  }, []);
+
   // Update available payment methods when order type changes
   const handleTypeChange = (type: TypeCommande) => {
     setTypeCommande(type);
@@ -88,6 +98,11 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+
+    if (storeStatus && !isOpenNow(storeStatus)) {
+      setErrorMessage(storeStatus.reason || 'La boutique est actuellement fermée. Réessayez plus tard.');
+      return;
+    }
 
     if (items.length === 0) {
       setErrorMessage('Votre panier est vide.');
@@ -193,6 +208,10 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
       )}
 
       <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* Avis de fermeture : bloque la commande si boutique fermée */}
+        <div className="lg:col-span-12">
+          <StoreClosedNotice compact />
+        </div>
         
         {/* Left Column: Client Details, Reception, Payment */}
         <div className="lg:col-span-7 space-y-6">

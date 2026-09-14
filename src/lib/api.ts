@@ -5,7 +5,7 @@
  * navigateur pour les actions privilégiées (voir audit sécurité).
  */
 
-const API_BASE: string =
+export const API_BASE: string =
   (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_URL) ||
   'http://localhost:4000/api';
 

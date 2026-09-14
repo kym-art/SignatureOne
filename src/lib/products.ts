@@ -1,15 +1,14 @@
 /**
- * Signature One - Products Management Service (Module 3)
- * Full CRUD, Storage, Availability Toggles, Featured Selection & Client Filtering
+ * Signature One - Products Management Service
+ * Source de vérité : BACKEND (NestJS + Supabase service_role).
+ * AUCUNE donnée mockée — le catalogue est chargé depuis GET /api/products
+ * au démarrage (refreshProductsFromBackend) et dans un cache mémoire.
  */
 
 import { Product, CreateProductInput, UpdateProductInput } from '../types';
-import { isMockDataEnabled } from './config';
-import { apiFetch, ApiError } from './api';
+import { apiFetch, ApiError, getApiToken, API_BASE } from './api';
 
-const STORAGE_PRODUCTS_KEY = 'signature_one_products_v3';
-
-// High-definition artisanal product images
+// High-definition artisanal product images (fallback si photo absente)
 export const DEFAULT_PRODUCT_IMAGES = {
   degueNature: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80',
   degueVanille: 'https://images.unsplash.com/photo-1572490122747-3968b75cc699?auto=format&fit=crop&w=800&q=80',
@@ -19,87 +18,8 @@ export const DEFAULT_PRODUCT_IMAGES = {
   gingembreAnanas: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=800&q=80',
 };
 
-// Seed Products adhering to the brand identity (Dèguè, Yaourt, Boissons)
-const INITIAL_PRODUCTS: Product[] = [
-  {
-    id: 'prod_degue_nature',
-    nom: 'Dèguè Onctueux Nature',
-    description: 'Recette traditionnelle au yaourt artisanal crémeux, couscous de mil doré délicatement cuit à la vapeur.',
-    format: 'Bouteille 500ml',
-    prix: 1500,
-    photoUrl: DEFAULT_PRODUCT_IMAGES.degueNature,
-    disponible: true,
-    quantiteRestante: 25,
-    actif: true,
-    misEnAvant: true,
-    createdAt: '2026-08-20T08:00:00.000Z',
-  },
-  {
-    id: 'prod_degue_vanille_coco',
-    nom: 'Dèguè Gourmand Vanille & Coco',
-    description: 'Infusion à la gousse de vanille bourbon, yaourt soyeux et copeaux de noix de coco grillée.',
-    format: 'Pot 400g',
-    prix: 1800,
-    photoUrl: DEFAULT_PRODUCT_IMAGES.degueVanille,
-    disponible: true,
-    quantiteRestante: 18,
-    actif: true,
-    misEnAvant: true,
-    createdAt: '2026-08-21T09:30:00.000Z',
-  },
-  {
-    id: 'prod_yaourt_pur_lait',
-    nom: 'Yaourt Brassé Pur Lait Entier',
-    description: 'Yaourt velouté pur lait pasteurisé de ferme, texture douce et naturellement riche en probiotiques.',
-    format: 'Bouteille 1L',
-    prix: 2500,
-    photoUrl: DEFAULT_PRODUCT_IMAGES.yaourtPurLait,
-    disponible: true,
-    quantiteRestante: 12,
-    actif: true,
-    misEnAvant: true,
-    createdAt: '2026-08-22T10:15:00.000Z',
-  },
-  {
-    id: 'prod_yaourt_mangue_passion',
-    nom: 'Yaourt Onctueux Mangue & Passion',
-    description: 'Coulis de mangues locales du Togo et fruits de la passion sur lit de yaourt crémeux.',
-    format: 'Pot 350ml',
-    prix: 1600,
-    photoUrl: DEFAULT_PRODUCT_IMAGES.yaourtMangue,
-    disponible: false, // Exemplary unavailable product for testing Module 3 badge
-    quantiteRestante: 0,
-    actif: true,
-    misEnAvant: false,
-    createdAt: '2026-08-23T14:00:00.000Z',
-  },
-  {
-    id: 'prod_bissap_menthe',
-    nom: 'Bissap Royal Menthe Fraîche',
-    description: 'Infusion artisanale de fleurs d’hibiscus bio, menthe poivrée fraîche et touche subtile de cannelle.',
-    format: 'Bouteille 500ml',
-    prix: 1000,
-    photoUrl: DEFAULT_PRODUCT_IMAGES.bissapMenthe,
-    disponible: true,
-    quantiteRestante: 30,
-    actif: true,
-    misEnAvant: false,
-    createdAt: '2026-08-24T11:00:00.000Z',
-  },
-  {
-    id: 'prod_gingembre_ananas',
-    nom: 'Gnamakoudji Ananas Pur Jus',
-    description: 'Élixir tonifiant au pur jus de gingembre frais pressé et ananas pain de sucre rôti.',
-    format: 'Bouteille 500ml',
-    prix: 1200,
-    photoUrl: DEFAULT_PRODUCT_IMAGES.gingembreAnanas,
-    disponible: true,
-    quantiteRestante: 20,
-    actif: true,
-    misEnAvant: false,
-    createdAt: '2026-08-25T15:30:00.000Z',
-  },
-];
+// Cache mémoire (source de vérité = backend, jamais localStorage)
+let productsCache: Product[] | null = null;
 
 // Product Subscribers for React reactivity
 type ProductChangeListener = (products: Product[]) => void;
@@ -117,38 +37,32 @@ function notifySubscribers(): void {
   listeners.forEach((fn) => fn(current));
 }
 
-// Load products from localStorage with fallback
+/** Le catalogue est chargé depuis le backend au démarrage. */
 export function getAllProducts(): Product[] {
-  if (typeof window === 'undefined') return isMockDataEnabled ? INITIAL_PRODUCTS : [];
-  try {
-    const raw = localStorage.getItem(STORAGE_PRODUCTS_KEY);
-    if (!raw) {
-      if (isMockDataEnabled) {
-        localStorage.setItem(STORAGE_PRODUCTS_KEY, JSON.stringify(INITIAL_PRODUCTS));
-      }
-      return isMockDataEnabled ? INITIAL_PRODUCTS : [];
-    }
-    const parsed: Product[] = JSON.parse(raw);
-    return parsed;
-  } catch {
-    return isMockDataEnabled ? INITIAL_PRODUCTS : [];
-  }
-}
-
-// Save products to localStorage and trigger notifications
-function saveProducts(products: Product[]): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(STORAGE_PRODUCTS_KEY, JSON.stringify(products));
-    notifySubscribers();
-  } catch (err) {
-    console.error('Failed to save products:', err);
-  }
+  return productsCache ?? [];
 }
 
 /**
+ * Charge le catalogue depuis le backend (GET /api/products — public).
+ * Appelée au démarrage de l'application (App.tsx) et après chaque mutation.
+ */
+export async function refreshProductsFromBackend(): Promise<void> {
+  try {
+    const products = await apiFetch<Product[]>('/products');
+    productsCache = Array.isArray(products) ? products : [];
+  } catch (e) {
+    console.warn('[products] refreshProductsFromBackend:', e instanceof ApiError ? e.message : e);
+  }
+  notifySubscribers();
+}
+
+/** Met à jour le cache mémoire avec les produits donnés. */
+function setCache(products: Product[]): void {
+  productsCache = products;
+  notifySubscribers();
+}
+/**
  * Get active products for client-facing store (/produits, boutique)
- * Only products where actif === true
  */
 export function getActiveProducts(): Product[] {
   return getAllProducts().filter((p) => p.actif);
@@ -178,7 +92,50 @@ export function getProductById(id: string): Product | undefined {
 }
 
 /**
- * Admin: Create a new product
+ * Upload une image produit vers Supabase Storage.
+ * Envoie le fichier en multipart — retourne l'URL publique courte.
+ * (Alternative au base64 qui dépassait @MaxLength(500) du DTO backend.)
+ */
+export async function uploadProductImage(
+  file: File
+): Promise<{ success: boolean; url?: string; error?: string }> {
+  const MAX_BYTES = 1024 * 1024; // 1 Mo max
+  if (file.size > MAX_BYTES) {
+    return {
+      success: false,
+      error: `Image trop volumineuse : ${Math.round(file.size / 1024)} Ko (max 1 Mo). Compressez l'image.`,
+    };
+  }
+  if (!file.type.startsWith('image/')) {
+    return { success: false, error: 'Seules les images sont acceptées.' };
+  }
+
+  try {
+    const token = getApiToken();
+    const form = new FormData();
+    form.append('file', file);
+    const res = await fetch(`${API_BASE}/uploads/product-image`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+    if (!res.ok) {
+      let message = `Erreur upload (${res.status})`;
+      try {
+        const data = await res.json();
+        if (typeof data?.message === 'string') message = data.message;
+      } catch { /* ignore */ }
+      return { success: false, error: message };
+    }
+    const data = (await res.json()) as { url: string };
+    return { success: true, url: data.url };
+  } catch {
+    return { success: false, error: 'Upload impossible : backend injoignable.' };
+  }
+}
+
+/**
+ * Admin: Create a new product — via BACKEND (POST /api/products)
  */
 export async function createProduct(input: CreateProductInput): Promise<{ success: boolean; product?: Product; error?: string }> {
   if (!input.nom?.trim()) {
@@ -191,47 +148,22 @@ export async function createProduct(input: CreateProductInput): Promise<{ succes
     return { success: false, error: 'Veuillez renseigner un prix valide supérieur à 0 FCFA.' };
   }
 
-  const newProduct: Product = {
-    id: `prod_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-    nom: input.nom.trim(),
-    description: input.description?.trim() || '',
-    format: input.format.trim(),
-    prix: Math.round(input.prix),
-    photoUrl: input.photoUrl?.trim() || DEFAULT_PRODUCT_IMAGES.degueNature,
-    disponible: input.disponible !== undefined ? input.disponible : true,
-    quantiteRestante: input.quantiteRestante !== undefined ? input.quantiteRestante : null,
-    actif: input.actif !== undefined ? input.actif : true,
-    misEnAvant: input.misEnAvant !== undefined ? input.misEnAvant : false,
-    createdAt: new Date().toISOString(),
-  };
-
-  // Mode mock explicite uniquement : écriture locale sans backend.
-  if (isMockDataEnabled) {
-    const products = getAllProducts();
-    products.unshift(newProduct);
-    saveProducts(products);
-    return { success: true, product: newProduct };
-  }
-
-  // Sinon : le backend (rôle ADMIN vérifié côté serveur) est la source de vérité.
   try {
     const created = await apiFetch<Product>('/products', {
       method: 'POST',
       body: {
-        nom: newProduct.nom,
-        description: newProduct.description,
-        format: newProduct.format,
-        prix: newProduct.prix,
-        photoUrl: newProduct.photoUrl,
-        disponible: newProduct.disponible,
-        quantiteRestante: newProduct.quantiteRestante,
-        actif: newProduct.actif,
-        misEnAvant: newProduct.misEnAvant,
+        nom: input.nom.trim(),
+        description: input.description?.trim() || '',
+        format: input.format.trim(),
+        prix: Math.round(input.prix),
+        photoUrl: input.photoUrl?.trim() || DEFAULT_PRODUCT_IMAGES.degueNature,
+        disponible: input.disponible !== undefined ? input.disponible : true,
+        quantiteRestante: input.quantiteRestante !== undefined ? input.quantiteRestante : null,
+        actif: input.actif !== undefined ? input.actif : true,
+        misEnAvant: input.misEnAvant !== undefined ? input.misEnAvant : false,
       },
     });
-    const products = getAllProducts();
-    products.unshift(created);
-    saveProducts(products);
+    setCache([created, ...getAllProducts().filter((p) => p.id !== created.id)]);
     return { success: true, product: created };
   } catch (e) {
     const message = e instanceof ApiError ? e.message : 'Erreur lors de la création du produit.';
@@ -240,17 +172,9 @@ export async function createProduct(input: CreateProductInput): Promise<{ succes
 }
 
 /**
- * Admin: Update existing product
+ * Admin: Update existing product — via BACKEND (PATCH /api/products/:id)
  */
 export async function updateProduct(id: string, input: UpdateProductInput): Promise<{ success: boolean; product?: Product; error?: string }> {
-  const products = getAllProducts();
-  const index = products.findIndex((p) => p.id === id);
-
-  if (index === -1) {
-    return { success: false, error: 'Produit introuvable.' };
-  }
-
-  const current = products[index];
   const patch: UpdateProductInput = {
     nom: input.nom !== undefined ? input.nom.trim() : undefined,
     description: input.description !== undefined ? input.description.trim() : undefined,
@@ -263,29 +187,10 @@ export async function updateProduct(id: string, input: UpdateProductInput): Prom
     misEnAvant: input.misEnAvant,
   };
 
-  if (isMockDataEnabled) {
-    const updated: Product = {
-      ...current,
-      nom: patch.nom ?? current.nom,
-      description: patch.description ?? current.description,
-      format: patch.format ?? current.format,
-      prix: patch.prix ?? current.prix,
-      photoUrl: patch.photoUrl ?? current.photoUrl,
-      disponible: patch.disponible ?? current.disponible,
-      quantiteRestante: patch.quantiteRestante ?? current.quantiteRestante,
-      actif: patch.actif ?? current.actif,
-      misEnAvant: patch.misEnAvant ?? current.misEnAvant,
-    };
-    products[index] = updated;
-    saveProducts(products);
-    return { success: true, product: updated };
-  }
-
   try {
     const updated = await apiFetch<Product>(`/products/${id}`, { method: 'PATCH', body: patch });
-    products[index] = { ...current, ...updated };
-    saveProducts(products);
-    return { success: true, product: products[index] };
+    setCache(getAllProducts().map((p) => (p.id === updated.id ? { ...p, ...updated } : p)));
+    return { success: true, product: updated };
   } catch (e) {
     const message = e instanceof ApiError ? e.message : 'Erreur lors de la mise à jour du produit.';
     return { success: false, error: message };
@@ -330,24 +235,13 @@ export async function toggleProductFeatured(id: string): Promise<{ success: bool
 }
 
 /**
- * Admin: Delete product
+ * Admin: Delete product — via BACKEND (DELETE /api/products/:id)
+ * Le backend fait un soft-delete si le produit est référencé.
  */
 export async function deleteProduct(id: string): Promise<{ success: boolean; error?: string }> {
-  const products = getAllProducts();
-  const filtered = products.filter((p) => p.id !== id);
-
-  if (filtered.length === products.length) {
-    return { success: false, error: 'Produit introuvable.' };
-  }
-
-  if (isMockDataEnabled) {
-    saveProducts(filtered);
-    return { success: true };
-  }
-
   try {
     await apiFetch<void>(`/products/${id}`, { method: 'DELETE' });
-    saveProducts(filtered);
+    setCache(getAllProducts().filter((p) => p.id !== id));
     return { success: true };
   } catch (e) {
     const message = e instanceof ApiError ? e.message : 'Erreur lors de la suppression du produit.';

@@ -3,13 +3,16 @@ import { OrdersModule } from './orders/orders.module';
 import { ProductsModule } from './products/products.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { AuthModule } from './auth/auth.module';
+import { VendorsModule } from './vendors/vendors.module';
+import { SettingsModule } from './settings/settings.module';
+import { UploadsModule } from './uploads/uploads.module';
 import { CoreModule } from './common/core.module';
 import { APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { JwtAuthGuard } from './common/auth/guards/jwt-auth.guard';
 import { RolesGuard } from './common/auth/guards/roles.guard';
 
 @Module({
-  imports: [CoreModule, AuthModule, OrdersModule, ProductsModule, ReviewsModule],
+  imports: [CoreModule, AuthModule, OrdersModule, ProductsModule, ReviewsModule, VendorsModule, SettingsModule, UploadsModule],
   // Guards globaux : l'accès repose sur le JWT serveur, jamais sur le localStorage.
   // ValidationPipe global : validation runtime de TOUS les body des routes
   // (les DTOs sont des classes avec décorateurs class-validator).

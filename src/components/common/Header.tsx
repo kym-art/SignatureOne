@@ -3,6 +3,7 @@ import { ShoppingBag, Store, QrCode, LogOut, Clock, ShoppingCart } from 'lucide-
 import { getCurrentUser, logout, subscribeAuth } from '../../lib/auth';
 import { useCart } from '../../lib/CartContext';
 import { User } from '../../types';
+import { StoreStatusBanner } from './StoreStatusBanner';
 
 interface HeaderProps {
   currentTab: string;
@@ -27,6 +28,10 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, onSelectTab }) => {
 
   return (
     <header id="main-header" className="sticky top-0 z-40 bg-[#FAF3E8]/95 backdrop-blur-md border-b border-[#E5DDD0]">
+      {/* Bannière d'état boutique (ouverte/fermée) */}
+      <div className="max-w-6xl mx-auto px-3 sm:px-6 flex flex-wrap items-center gap-2 pb-1">
+        <StoreStatusBanner />
+      </div>
       <div className="max-w-6xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-2">
         
         {/* Brand Logo */}

@@ -19,6 +19,7 @@ import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import type { NextFunction, Request, Response } from 'express';
+import { join } from 'node:path';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { AppModule } from './app.module';
 
@@ -114,6 +115,11 @@ async function createApp(): Promise<NestExpressApplication> {
         erreur: err?.message || String(err),
       });
     }
+  });
+
+  // Fichiers statiques : images produits uploadées (stockées sur le disque).
+  app.useStaticAssets(join(process.cwd(), 'uploads'), {
+    prefix: '/uploads',
   });
 
   await app.init();

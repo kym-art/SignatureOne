@@ -27,6 +27,7 @@ import {
   toggleProductFeatured,
   deleteProduct,
   subscribeProducts,
+  uploadProductImage,
   DEFAULT_PRODUCT_IMAGES,
 } from '../../lib/products';
 import { Product, CreateProductInput } from '../../types';
@@ -155,20 +156,32 @@ export const AdminProductsManagement: React.FC = () => {
     }
   };
 
-  // Handle Image Upload Helper
-  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean) => {
+  // Handle Image Upload — upload VERS Supabase Storage (URL courte),
+  // plus JAMAIS de base64 (dépassait la limite @MaxLength(500) du backend).
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageUploadError, setImageUploadError] = useState<string | null>(null);
+
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result as string;
-        if (isEdit && editingProduct) {
-          setEditingProduct({ ...editingProduct, photoUrl: base64 });
-        } else {
-          setCreateForm({ ...createForm, photoUrl: base64 });
-        }
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    setImageUploading(true);
+    setImageUploadError(null);
+    try {
+      const res = await uploadProductImage(file);
+      if (!res.success || !res.url) {
+        setImageUploadError(res.error || 'Erreur lors du téléversement de l\'image.');
+        return;
+      }
+      if (isEdit && editingProduct) {
+        setEditingProduct({ ...editingProduct, photoUrl: res.url });
+      } else {
+        setCreateForm({ ...createForm, photoUrl: res.url });
+      }
+    } catch (err) {
+      setImageUploadError('Erreur inattendue lors du téléversement de l\'image.');
+    } finally {
+      setImageUploading(false);
     }
   };
 
@@ -527,6 +540,7 @@ export const AdminProductsManagement: React.FC = () => {
                     <input
                       type="file"
                       accept="image/*"
+                      disabled={imageUploading}
                       onChange={(e) => handleImageFileChange(e, false)}
                       className="block w-full text-[11px] text-stone-500 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#1F3D2E] file:text-[#FAF3E8] hover:file:bg-[#2A4D3B] cursor-pointer"
                     />
@@ -537,6 +551,12 @@ export const AdminProductsManagement: React.FC = () => {
                       onChange={(e) => setCreateForm({ ...createForm, photoUrl: e.target.value })}
                       className="w-full px-2.5 py-1 text-[11px] bg-white border border-[#E5DDD0] rounded-lg outline-hidden"
                     />
+                    {imageUploading && (
+                      <p className="text-[10px] text-[#53685C]">Téléversement de l'image... (max 1 Mo)</p>
+                    )}
+                    {imageUploadError && (
+                      <p className="text-[10px] text-red-700">{imageUploadError}</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -687,6 +707,7 @@ export const AdminProductsManagement: React.FC = () => {
                     <input
                       type="file"
                       accept="image/*"
+                      disabled={imageUploading}
                       onChange={(e) => handleImageFileChange(e, true)}
                       className="block w-full text-[11px] text-stone-500 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#1F3D2E] file:text-[#FAF3E8] hover:file:bg-[#2A4D3B] cursor-pointer"
                     />
@@ -697,6 +718,12 @@ export const AdminProductsManagement: React.FC = () => {
                       onChange={(e) => setEditingProduct({ ...editingProduct, photoUrl: e.target.value })}
                       className="w-full px-2.5 py-1 text-[11px] bg-white border border-[#E5DDD0] rounded-lg outline-hidden"
                     />
+                    {imageUploading && (
+                      <p className="text-[10px] text-[#53685C]">Téléversement de l'image... (max 1 Mo)</p>
+                    )}
+                    {imageUploadError && (
+                      <p className="text-[10px] text-red-700">{imageUploadError}</p>
+                    )}
                   </div>
                 </div>
               </div>

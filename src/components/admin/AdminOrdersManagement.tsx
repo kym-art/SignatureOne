@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ShoppingCart,
   Filter,
@@ -14,7 +14,7 @@ import {
   Printer,
   X
 } from 'lucide-react';
-import { Order, StatutCommande, StatutPaiement, ModePaiement, TypeCommande } from '../../types';
+import { Order, StatutCommande, StatutPaiement, ModePaiement, TypeCommande, VendorUserRecord } from '../../types';
 import {
   getStatusDetails,
   getPaymentStatusDetails,
@@ -50,7 +50,11 @@ export const AdminOrdersManagement: React.FC<AdminOrdersManagementProps> = ({ or
 
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  const vendorsList = getVendorsList();
+  // Liste des vendeurs depuis le backend (chargée de façon asynchrone).
+  const [vendorsList, setVendorsList] = useState<VendorUserRecord[]>([]);
+  useEffect(() => {
+    void getVendorsList().then(setVendorsList);
+  }, []);
   const now = new Date();
 
   // Apply Combined Multi-Criteria Filtering (Module 8 Requirement 2 & Criterion)

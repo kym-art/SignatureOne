@@ -5,6 +5,7 @@
   "buildCommand": "node scripts/ci-migrate.mjs && npm run build && cd server && npm ci && npx tsc",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    { "source": "/uploads/(.*)", "destination": "/api/index" },
+    { "source": "/((?!api/|uploads/).*)", "destination": "/index.html" }
   ]
 }

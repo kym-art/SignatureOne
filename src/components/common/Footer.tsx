@@ -1,5 +1,6 @@
 import React from 'react';
 import { Store, Bike, Smartphone, Clock, MapPin, Phone } from 'lucide-react';
+import { STORE_CONTACT } from '../../lib/config';
 
 interface FooterProps {
   /** Navigation interne (utilisée par le discret accès équipe) */
@@ -58,11 +59,17 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             <ul className="space-y-1.5 text-[#A8988B]">
               <li className="flex items-center gap-1.5">
                 <Phone className="w-3.5 h-3.5 text-[#C28E5C]" />
-                <span>+228 90 00 00 00</span>
+                <a href={STORE_CONTACT.companyPhoneUrl} className="hover:text-[#FFFDF9] transition-colors">
+                  {STORE_CONTACT.companyPhone}
+                </a>
+              </li>
+              <li className="flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-[#C28E5C]" />
+                <span>Ouvert tous les jours, 09h à 22h</span>
               </li>
               <li className="flex items-center gap-1.5">
                 <MapPin className="w-3.5 h-3.5 text-[#C28E5C]" />
-                <span>Lomé, Togo</span>
+                <span>{STORE_CONTACT.companyCity}</span>
               </li>
             </ul>
           </div>
@@ -86,7 +93,16 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             {new Date().getFullYear()} Signature One. Tous droits réservés.
           </span>
           <div className="flex items-center gap-1.5">
-            <span>Dèguè, Yaourts & Boissons artisanales — Togo</span>
+            <span>
+              Site développé par{' '}
+              <a
+                href={STORE_CONTACT.developerPhoneUrl}
+                className="hover:text-[#FFFDF9] transition-colors font-semibold"
+              >
+                {STORE_CONTACT.developerName}
+              </a>{' '}
+              — {STORE_CONTACT.developerPhone}
+            </span>
           </div>
         </div>
       </div>

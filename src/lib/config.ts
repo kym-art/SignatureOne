@@ -51,9 +51,30 @@ function getBuildMode(): string | undefined {
  * - `production`  -> désactivées (build / .env de production)
  */
 export const isMockDataEnabled: boolean = (() => {
-  // Le mock n'est JAMAIS actif par défaut (dev comme prod) : il requiert un
-  // flag explicite VITE_USE_MOCK_DATA=true. Tout repli silencieux est interdit
-  // (voir audit sécurité) — une config manquante doit provoquer une erreur
-  // explicite, pas des données fictives.
-  return readEnv('VITE_USE_MOCK_DATA') === 'true';
+  // MOCK DÉSACTIVÉ DÉFINITIVEMENT (décision produit) : aucune donnée mockée,
+  // aucun localStorage de données — le backend est l'unique source de vérité.
+  // On ignore toute valeur VITE_USE_MOCK_DATA pour éviter tout retour accidentel.
+  void readEnv('VITE_USE_MOCK_DATA');
+  return false;
 })();
+
+// ---------------------------------------------------------------------------
+// Coordonnées officielles Signature One & équipe technique
+// Utilisées partout dans l'UI (Footer, bannière, reçus...)
+// ---------------------------------------------------------------------------
+export const STORE_CONTACT = {
+  companyName: 'Signature One',
+  companyPhone: '+228 92 53 07 00',
+  companyPhoneUrl: 'tel:+22892530700',
+  companyCity: 'Lomé, Togo',
+  developerName: 'KymDevCorp',
+  developerPhone: '+228 71 70 41 07',
+  developerPhoneUrl: 'tel:+22871704107',
+  developerEmail: 'kymdevcorp@gmail.com',
+};
+
+/** Horaires d'ouverture par défaut (surchargés par les settings backend). */
+export const DEFAULT_STORE_HOURS = {
+  openHour: '09:00',
+  closeHour: '22:00',
+};

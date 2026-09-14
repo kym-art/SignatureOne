@@ -5,8 +5,10 @@ import {
   NotFoundException,
   ConflictException,
   ForbiddenException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { SupabaseService } from '../common/supabase/supabase.service';
+import { SettingsService } from '../settings/settings.service';
 import { CreateOrderDto, DirectSaleDto } from './orders.dto';
 import { JwtUserPayload } from '../common/auth/jwt.service';
 import {
@@ -26,7 +28,32 @@ function padNum(n: number): string {
 export class OrdersService {
   private readonly logger = new Logger(OrdersService.name);
 
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly settings: SettingsService,
+  ) {}
+
+  /**
+   * Garde boutique fermée : bloque la création de commandes client quand
+   * la boutique est hors horaires ou en fermeture exceptionnelle.
+   * (Les ventes comptoir du vendeur restent possibles — passées par le
+   * personnel physiquement présent.)
+   */
+  private async assertStoreOpen(): Promise<void> {
+    try {
+      const status = await this.settings.getStoreStatus();
+      if (!status.isOpen) {
+        throw new ServiceUnavailableException(
+          status.reason || 'La boutique est actuellement fermée. Merci de réessayer pendant les horaires d\'ouverture.'
+        );
+      }
+    } catch (e) {
+      // Si l'erreur EST la garde (503), on la propage telle quelle.
+      if (e instanceof ServiceUnavailableException) throw e;
+      // Sinon (settings indisponibles), on n'empêche pas la commande : fail-open.
+      this.logger.warn(`assertStoreOpen: settings indisponibles (${(e as Error)?.message}) — commande autorisée.`);
+    }
+  }
 
   async findAll(): Promise<Order[]> {
     const { data, error } = await this.supabase.admin
@@ -79,6 +106,9 @@ export class OrdersService {
   }
 
   async create(input: CreateOrderDto): Promise<Order> {
+    // Garde boutique fermée : les clients ne peuvent commander qu'aux horaires.
+    await this.assertStoreOpen();
+
     if (!input.items || input.items.length === 0) {
       throw new BadRequestException('Aucun article dans la commande.');
     }

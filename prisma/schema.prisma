@@ -100,6 +100,15 @@ model Expense {
   createdAt DateTime @default(now())
 }
 
+/// Paramètres dynamiques du magasin (horaires, fermeture exceptionnelle).
+/// Clé-valeur JSON — évite de redeployer pour changer les horaires.
+model StoreSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
 model SmsLog {
   id              String    @id @default(cuid())
   sender          String

@@ -46,13 +46,14 @@ export const AdminVendorsManagement: React.FC = () => {
   } | null>(null);
   const [copied, setCopied] = useState(false);
 
-  // Refresh vendors list
-  const refreshVendors = () => {
-    setVendors(getVendorsList());
+  // Refresh vendors list (depuis le backend)
+  const refreshVendors = async () => {
+    const list = await getVendorsList();
+    setVendors(list);
   };
 
   useEffect(() => {
-    refreshVendors();
+    void refreshVendors();
   }, []);
 
   const filteredVendors = vendors.filter((v) => {
@@ -65,11 +66,11 @@ export const AdminVendorsManagement: React.FC = () => {
     return matchesSearch;
   });
 
-  const handleCreateSubmit = (e: React.FormEvent) => {
+  const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreateError(null);
 
-    const result = createVendorAccount({
+    const result = await createVendorAccount({
       nom: newNom,
       telephone: newPhone,
       motDePasse: autoGenPassword ? undefined : customPassword,
@@ -96,19 +97,19 @@ export const AdminVendorsManagement: React.FC = () => {
     }
   };
 
-  const handleToggleStatus = (vendor: VendorUserRecord) => {
+  const handleToggleStatus = async (vendor: VendorUserRecord) => {
     const action = vendor.actif ? 'désactiver' : 'réactiver';
     if (window.confirm(`Êtes-vous sûr de vouloir ${action} le compte de ${vendor.nom} (${vendor.telephone}) ?`)) {
-      toggleVendorStatus(vendor.id);
-      refreshVendors();
+      await toggleVendorStatus(vendor.id);
+      await refreshVendors();
     }
   };
 
-  const handleResetPassword = (vendor: VendorUserRecord) => {
+  const handleResetPassword = async (vendor: VendorUserRecord) => {
     if (window.confirm(`Générer un nouveau mot de passe temporaire pour ${vendor.nom} ?`)) {
-      const result = resetVendorPassword(vendor.id);
+      const result = await resetVendorPassword(vendor.id);
       if (result.success && result.tempPassword) {
-        refreshVendors();
+        await refreshVendors();
         setPasswordModalData({
           vendorNom: vendor.nom,
           vendorPhone: vendor.telephone,

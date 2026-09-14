@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { ShoppingBag, Plus, Check, Filter, Info, ArrowLeft, Search, Star, AlertCircle, ShoppingCart, Coffee, Store, Truck, SlidersHorizontal } from 'lucide-react';
 import { getActiveProducts, subscribeProducts, DEFAULT_PRODUCT_IMAGES } from '../../lib/products';
 import { useCart } from '../../lib/CartContext';
+import { getStoreStatusCached, subscribeStoreStatus, isOpenNow } from '../../lib/store-settings';
+import { StoreClosedNotice } from '../common/StoreStatusBanner';
 import { Product, TypeCommande } from '../../types';
 import { BoutiqueEntryChoice } from './BoutiqueEntryChoice';
 
@@ -20,6 +22,11 @@ export const BoutiqueView: React.FC<BoutiqueViewProps> = ({ onBack, onNavigate, 
   const [activeTableLabel, setActiveTableLabel] = useState<string | null>(null);
   const { addItem, openCart, totalCount, totalAmount } = useCart();
   const [lastAddedId, setLastAddedId] = useState<string | null>(null);
+  const [storeStatus, setStoreStatus] = useState(getStoreStatusCached());
+
+  useEffect(() => {
+    return subscribeStoreStatus((s) => setStoreStatus(s));
+  }, []);
 
   useEffect(() => {
     setProducts(getActiveProducts());
@@ -37,6 +44,7 @@ export const BoutiqueView: React.FC<BoutiqueViewProps> = ({ onBack, onNavigate, 
 
   const handleAddToCart = (product: Product) => {
     if (!product.disponible) return;
+    if (storeStatus && !isOpenNow(storeStatus)) return; // boutique fermée → commande bloquée
 
     addItem(product, 1);
     setLastAddedId(product.id);
@@ -239,6 +247,11 @@ export const BoutiqueView: React.FC<BoutiqueViewProps> = ({ onBack, onNavigate, 
         </div>
 
       </div>
+
+      {/* Avis de fermeture : bloque l'ajout au panier si boutique fermée */}
+      {storeStatus && !isOpenNow(storeStatus) && (
+        <StoreClosedNotice />
+      )}
 
       {/* Products Grid */}
       {filteredProducts.length === 0 ? (

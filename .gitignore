@@ -6,6 +6,12 @@ coverage/
 *.log
 .env*
 !.env.example
-
+.vendor
 .vercel
 .env*
+
+# Images uploadées localement (ne pas committer le contenu)
+uploads/
+server/uploads/
+!uploads/.gitkeep
+!server/uploads/.gitkeep

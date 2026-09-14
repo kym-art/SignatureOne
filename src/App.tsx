@@ -23,6 +23,8 @@ import { OrderConfirmationView } from './components/checkout/OrderConfirmationVi
 import { OrderTrackingView } from './components/tracking/OrderTrackingView';
 import { getCurrentUser, subscribeAuth } from './lib/auth';
 import { hydrateOrdersFromSupabase, hydrateOrdersFromBackend } from './lib/orders';
+import { refreshProductsFromBackend } from './lib/products';
+import { refreshStoreStatus } from './lib/store-settings';
 import { User, AuthSession, Order } from './types';
 import { ShieldAlert, ArrowLeft } from 'lucide-react';
 
@@ -46,6 +48,8 @@ export default function App() {
   useEffect(() => {
     hydrateOrdersFromSupabase();
     hydrateOrdersFromBackend();
+    void refreshProductsFromBackend();
+    void refreshStoreStatus();
   }, []);
 
   // Discret accès réservé à l'équipe (les boutons Admin / Vendeur / Connexion

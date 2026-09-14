@@ -27,6 +27,7 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import { AdminVendorsManagement } from './AdminVendorsManagement';
+import { AdminStoreSettings } from './AdminStoreSettings';
 import { AdminProductsManagement } from './AdminProductsManagement';
 import { AdminQRCodesManagement } from './AdminQRCodesManagement';
 import { AdminOrdersManagement } from './AdminOrdersManagement';
@@ -48,7 +49,7 @@ interface AdminViewProps {
 
 export const AdminView: React.FC<AdminViewProps> = ({ onBack }) => {
   const [activeSection, setActiveSection] = useState<
-    'dashboard' | 'orders' | 'expenses' | 'stats' | 'reviews' | 'products' | 'vendors' | 'qr' | 'history' | 'sms'
+    'dashboard' | 'orders' | 'expenses' | 'stats' | 'reviews' | 'products' | 'vendors' | 'qr' | 'history' | 'sms' | 'store'
   >('dashboard');
 
   const [orders, setOrders] = useState<Order[]>(getAllOrders());
@@ -254,6 +255,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBack }) => {
         >
           <MessageSquare className="w-3.5 h-3.5 text-[#C9A24B]" />
           <span>SMS Paiements</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSection('store')}
+          className={`px-3 py-1.5 rounded-xl font-bold transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+            activeSection === 'store'
+              ? 'bg-[#1F3D2E] text-[#FAF3E8] shadow-xs'
+              : 'text-[#53685C] hover:text-[#1F3D2E]'
+          }`}
+        >
+          <Clock className="w-3.5 h-3.5 text-[#C9A24B]" />
+          <span>Horaires & Fermeture</span>
         </button>
       </div>
 
@@ -501,6 +514,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBack }) => {
       {/* SECTION 10: SMS PAYMENTS (Mobile Money reconciliation) */}
       {activeSection === 'sms' && (
         <AdminSmsLogsManagement />
+      )}
+
+      {/* SECTION 11: HORAIRES & FERMETURE */}
+      {activeSection === 'store' && (
+        <AdminStoreSettings />
       )}
 
     </div>

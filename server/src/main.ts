@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
@@ -70,6 +71,11 @@ async function bootstrap(): Promise<void> {
     res.setHeader('X-Frame-Options', 'deny');
     res.setHeader('Referrer-Policy', 'no-referrer');
     next();
+  });
+
+  // Fichiers statiques : images produits uploadées (stockées sur le disque).
+  app.useStaticAssets(join(process.cwd(), 'uploads'), {
+    prefix: '/uploads',
   });
 
   // Port dédié à l'API : PORT_API (documenté dans .env.example). On ne lit PAS
