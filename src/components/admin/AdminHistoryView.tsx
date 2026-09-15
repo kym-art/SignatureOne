@@ -135,7 +135,7 @@ export const AdminHistoryView: React.FC<AdminHistoryViewProps> = ({ orders }) =>
                         </span>
                       </td>
                       <td className="p-3 text-[#53685C] max-w-[200px] truncate">
-                        {ord.items.map((i) => `${i.quantite}x ${i.product?.nom || 'Article'}`).join(', ')}
+                        {(ord.items ?? []).map((i) => `${i.quantite}x ${i.product?.nom || 'Article'}`).join(', ')}
                       </td>
                       <td className="p-3 font-serif font-bold text-[#1F3D2E] whitespace-nowrap">
                         {ord.total.toLocaleString('fr-FR')} FCFA

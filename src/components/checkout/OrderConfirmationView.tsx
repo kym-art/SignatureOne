@@ -180,7 +180,7 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
             </h2>
 
             <div className="space-y-2.5 pt-2 max-h-52 overflow-y-auto pr-1 text-xs">
-              {order.items.map((item) => (
+              {(order.items ?? []).map((item) => (
                 <div key={item.id} className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="font-mono font-bold bg-[#FAF3E8] text-[#1F3D2E] px-2 py-0.5 rounded border border-[#E5DDD0]">

@@ -25,6 +25,7 @@ import { getCurrentUser, subscribeAuth } from './lib/auth';
 import { hydrateOrdersFromSupabase, hydrateOrdersFromBackend } from './lib/orders';
 import { refreshProductsFromBackend } from './lib/products';
 import { refreshStoreStatus } from './lib/store-settings';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { User, AuthSession, Order } from './types';
 import { ShieldAlert, ArrowLeft } from 'lucide-react';
 
@@ -114,6 +115,10 @@ export default function App() {
 
   const handleLoginSuccess = (session: AuthSession) => {
     setRedirectReason(null);
+    // Après login (admin/vendeur) : recharge les commandes RÉELLES depuis le
+    // backend (avec items). L'hydratation au démarrage s'exécute sans JWT et
+    // laisse un cache Supabase anon sans items — source de la page admin blanche.
+    void hydrateOrdersFromBackend();
     if (session.user.role === 'ADMIN') {
       setCurrentTab('admin');
     } else {
@@ -274,7 +279,9 @@ export default function App() {
               transition={{ duration: 0.2 }}
             >
               {currentUser && (currentUser.role === 'VENDEUR' || currentUser.role === 'ADMIN') ? (
-                <VendeurView onBack={() => handleNavigate('public')} />
+                <ErrorBoundary label="vendeur">
+                  <VendeurView onBack={() => handleNavigate('public')} />
+                </ErrorBoundary>
               ) : (
                 <div className="bg-white p-8 rounded-3xl border border-[#E5DDD0] text-center space-y-4 max-w-md mx-auto shadow-xs">
                   <ShieldAlert className="w-12 h-12 text-[#C9A24B] mx-auto" />
@@ -301,7 +308,9 @@ export default function App() {
               transition={{ duration: 0.2 }}
             >
               {currentUser && currentUser.role === 'ADMIN' ? (
-                <AdminView onBack={() => handleNavigate('public')} />
+                <ErrorBoundary label="admin">
+                  <AdminView onBack={() => handleNavigate('public')} />
+                </ErrorBoundary>
               ) : (
                 <div className="bg-white p-8 rounded-3xl border border-[#E5DDD0] text-center space-y-4 max-w-md mx-auto shadow-xs">
                   <ShieldAlert className="w-12 h-12 text-red-600 mx-auto" />

@@ -444,7 +444,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBack }) => {
                         <td className="p-3 font-mono font-bold text-[#1F3D2E]">{o.numero}</td>
                         <td className="p-3 font-medium text-[#1F3D2E]">{o.clientNom}</td>
                         <td className="p-3 text-[11px] text-[#53685C] max-w-[200px] truncate">
-                          {o.items.map((i) => `${i.quantite}x ${i.product?.nom || 'Prod'}`).join(', ')}
+                          {(o.items ?? []).map((i) => `${i.quantite}x ${i.product?.nom || 'Prod'}`).join(', ')}
                         </td>
                         <td className="p-3 font-serif font-bold text-[#1F3D2E]">
                           {o.total.toLocaleString('fr-FR')} F

@@ -213,7 +213,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, isOpen, onClo
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#EFE9DF]">
-                  {order.items.map((item) => (
+                  {(order.items ?? []).map((item) => (
                     <tr key={item.id}>
                       <td className="py-2.5 px-3">
                         <div className="font-bold text-[#1F3D2E]">{item.product?.nom || 'Article'}</div>

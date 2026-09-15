@@ -461,7 +461,7 @@ export const VendeurView: React.FC<VendeurViewProps> = ({ onBack }) => {
 
                       {/* Items Summary */}
                       <div className="text-xs text-[#53685C] bg-[#FAF3E8]/60 p-2.5 rounded-xl border border-[#EFE9DF]">
-                        {order.items.map((i) => `${i.quantite}x ${i.product?.nom || 'Article'}`).join(' • ')}
+                        {(order.items ?? []).map((i) => `${i.quantite}x ${i.product?.nom || 'Article'}`).join(' • ')}
                       </div>
                     </div>
 
@@ -636,7 +636,7 @@ export const VendeurView: React.FC<VendeurViewProps> = ({ onBack }) => {
                             </span>
                           </td>
                           <td className="p-3 text-[#53685C] max-w-[180px] truncate">
-                            {ord.items.map((i) => `${i.quantite}x ${i.product?.nom || 'Article'}`).join(', ')}
+                            {(ord.items ?? []).map((i) => `${i.quantite}x ${i.product?.nom || 'Article'}`).join(', ')}
                           </td>
                           <td className="p-3 font-serif font-bold text-[#1F3D2E] whitespace-nowrap">
                             {ord.total.toLocaleString('fr-FR')} F

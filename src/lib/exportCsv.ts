@@ -35,7 +35,7 @@ export function exportOrdersToCsv(orders: Order[], filenamePrefix = 'commandes_s
 
   const rows = orders.map((o) => {
     const formattedDate = new Date(o.createdAt).toLocaleString('fr-FR');
-    const articlesSummary = o.items.map((i) => `${i.quantite}x ${i.product?.nom || 'Article'} (${i.prixUnitaire}F)`).join('; ');
+    const articlesSummary = (o.items ?? []).map((i) => `${i.quantite}x ${i.product?.nom || 'Article'} (${i.prixUnitaire}F)`).join('; ');
     const tableOrAddr = o.tableId ? `Table ${o.tableId}` : (o.adresseLivraison || 'Comptoir');
     const statusLabel = getStatusDetails(o.statut).label;
     const paymentStatusLabel = getPaymentStatusDetails(o.statutPaiement).label;

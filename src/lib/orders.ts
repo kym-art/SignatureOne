@@ -13,6 +13,49 @@ const STORAGE_ORDERS_KEY = 'signature_one_orders_v4';
 const STORAGE_COUNTER_KEY = 'signature_one_order_counter_v4';
 const STORAGE_MY_ORDERS_KEY = 'signature_one_my_orders_v1';
 
+/**
+ * Normalise une commande brute (ligne Supabase / réponse backend / cache
+ * localStorage) en un objet `Order` sûr pour l'UI :
+ *  - `items` TOUJOURS un tableau. La table `Order` n'a PAS de colonne items :
+ *    les lignes hydratées depuis Supabase anon (ou un vieux cache localStorage)
+ *    n'en ont pas, et `o.items.map(...)` levait alors un TypeError →
+ *    PAGE ADMIN BLANCHE. On accepte aussi les items sérialisés en string JSON.
+ *  - `total` toujours un nombre (colonne numeric / null-safe).
+ *  - `createdAt` toujours une chaîne ISO.
+ */
+export function normalizeOrder(raw: unknown): Order {
+  const o = (raw && typeof raw === 'object' ? raw : {}) as Partial<Order> & Record<string, unknown>;
+  // `items` lu via unknown : le typage nominal de Order (OrderItem[]) réduirait
+  // sinon le reste à `never` après le test Array.isArray.
+  const rawItems: unknown = o.items;
+  let items: OrderItem[] = [];
+  if (Array.isArray(rawItems)) {
+    items = rawItems as OrderItem[];
+  } else if (typeof rawItems === 'string' && rawItems.trim()) {
+    try {
+      const parsed: unknown = JSON.parse(rawItems);
+      if (Array.isArray(parsed)) items = parsed as OrderItem[];
+    } catch {
+      items = [];
+    }
+  }
+  const totalNum = Number(o.total);
+  return {
+    ...(o as unknown as Order),
+    items,
+    total: Number.isFinite(totalNum) ? totalNum : 0,
+    createdAt:
+      typeof o.createdAt === 'string' && o.createdAt
+        ? o.createdAt
+        : new Date().toISOString(),
+  };
+}
+
+/** Normalise une liste de commandes (les non-tableaux sont ignorés). */
+function normalizeOrders(list: unknown): Order[] {
+  return (Array.isArray(list) ? list : []).map(normalizeOrder);
+}
+
 // Initial sample orders for preview & demonstration
 const INITIAL_ORDERS: Order[] = [
   {
@@ -145,8 +188,8 @@ export function getAllOrders(): Order[] {
       }
       return isMockDataEnabled ? INITIAL_ORDERS : [];
     }
-    const parsed: Order[] = JSON.parse(raw);
-    return parsed;
+    const parsed: unknown = JSON.parse(raw);
+    return normalizeOrders(parsed);
   } catch {
     return isMockDataEnabled ? INITIAL_ORDERS : [];
   }
@@ -156,7 +199,7 @@ export function getAllOrders(): Order[] {
 function saveOrders(orders: Order[]): void {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(STORAGE_ORDERS_KEY, JSON.stringify(orders));
+    localStorage.setItem(STORAGE_ORDERS_KEY, JSON.stringify(normalizeOrders(orders)));
     notifySubscribers();
   } catch (err) {
     console.error('Failed to save orders:', err);
@@ -943,8 +986,9 @@ export async function hydrateOrdersFromBackend(): Promise<void> {
   try {
     const serverOrders = await apiFetch<Order[]>('/orders');
     if (Array.isArray(serverOrders) && serverOrders.length > 0) {
+      const normalized = normalizeOrders(serverOrders);
       const existing = getAllOrders();
-      const merged = [...existing.filter((e) => !serverOrders.some((s) => s.id === e.id)), ...serverOrders];
+      const merged = [...existing.filter((e) => !normalized.some((s) => s.id === e.id)), ...normalized];
       try {
         localStorage.setItem(STORAGE_ORDERS_KEY, JSON.stringify(merged));
       } catch (err) {
@@ -975,7 +1019,7 @@ export async function hydrateOrdersFromSupabase(): Promise<void> {
       .from('Order')
       .select('*')
       .order('createdAt', { ascending: false });
-    const serverOrders = (data || []) as Order[];
+    const serverOrders = normalizeOrders(data || []);
     if (serverOrders.length > 0) {
       const existing = getAllOrders();
       // Merge: keep local-only orders (e.g. currently mid-checkout) on top,
