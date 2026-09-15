@@ -558,6 +558,10 @@ export const AdminProductsManagement: React.FC = () => {
                       src={localPreview || createForm.photoUrl || DEFAULT_PRODUCT_IMAGES.degueNature}
                       alt="Aperçu"
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        // URL morte (ex. ancien chemin /uploads/ perdu sur Vercel) → image par défaut
+                        (e.target as HTMLImageElement).src = DEFAULT_PRODUCT_IMAGES.degueNature;
+                      }}
                     />
                   </div>
                   <div className="flex-1 space-y-1.5">
@@ -725,6 +729,10 @@ export const AdminProductsManagement: React.FC = () => {
                       src={localPreview || editingProduct.photoUrl || DEFAULT_PRODUCT_IMAGES.degueNature}
                       alt="Aperçu"
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        // URL morte (ex. ancien chemin /uploads/ perdu sur Vercel) → image par défaut
+                        (e.target as HTMLImageElement).src = DEFAULT_PRODUCT_IMAGES.degueNature;
+                      }}
                     />
                   </div>
                   <div className="flex-1 space-y-1.5">
