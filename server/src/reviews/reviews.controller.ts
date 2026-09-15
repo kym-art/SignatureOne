@@ -21,10 +21,11 @@ import { CreateReviewDto, FeatureReviewDto } from './reviews.dto';
 export class ReviewsController {
   constructor(private readonly reviews: ReviewsService) {}
 
-  @Roles('ADMIN')
+  /** Public : avis VALIDÉS uniquement (les en attente ne fuient jamais). */
+  @Public()
   @Get()
-  findAll() {
-    return this.reviews.findAll();
+  findApproved() {
+    return this.reviews.findApproved();
   }
 
   @Roles('ADMIN')

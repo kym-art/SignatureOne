@@ -98,6 +98,36 @@ export function getPendingReviews(): Review[] {
   return getAllReviews().filter((r) => !r.valide);
 }
 
+/**
+ * Hydrate le cache des avis depuis le BACKEND (source de vérité).
+ * - Public (includePending=false) : GET /reviews → avis validés uniquement,
+ *   affichés sur la page d'accueil (avis d'AUTRES appareils désormais visibles).
+ * - Admin (includePending=true) : + GET /reviews/pending (JWT requis) → la
+ *   modération voit les avis de TOUS les appareils, pas seulement du sien.
+ * Le cache est REMPLACÉ (le backend est la vérité ; chaque soumission part
+ * déjà au backend). Silencieux si le backend est injoignable.
+ */
+export async function hydrateReviewsFromBackend(includePending = false): Promise<void> {
+  if (typeof window === 'undefined') return;
+  try {
+    const approved = await apiFetch<Review[]>('/reviews');
+    if (!Array.isArray(approved)) return;
+    let pending: Review[] = [];
+    if (includePending) {
+      try {
+        const pendingRes = await apiFetch<Review[]>('/reviews/pending');
+        if (Array.isArray(pendingRes)) pending = pendingRes;
+      } catch {
+        // non-admin ou backend indisponible : validés seuls
+      }
+    }
+    const merged = [...pending, ...approved];
+    if (merged.length > 0) saveReviews(merged);
+  } catch {
+    // backend injoignable : cache local conservé
+  }
+}
+
 export function hasOrderReview(orderId: string): boolean {
   return getAllReviews().some((r) => r.orderId === orderId);
 }

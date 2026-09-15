@@ -19,7 +19,8 @@ import {
   approveReview,
   hideReview,
   deleteReview,
-  subscribeReviews
+  subscribeReviews,
+  hydrateReviewsFromBackend
 } from '../../lib/reviews';
 
 export const AdminReviewsManagement: React.FC = () => {
@@ -28,6 +29,9 @@ export const AdminReviewsManagement: React.FC = () => {
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
+    // Modération multi-appareils : charge avis en attente + validés depuis le
+    // backend (JWT requis pour /pending) au montage du composant.
+    void hydrateReviewsFromBackend(true);
     setReviews(getAllReviews());
     const unsub = subscribeReviews(() => setReviews(getAllReviews()));
     return unsub;

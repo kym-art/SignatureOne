@@ -13,6 +13,20 @@ export class ReviewsService {
     return (data || []) as Review[];
   }
 
+  /**
+   * Liste PUBLIQUE : uniquement les avis VALIDÉS (valide=true).
+   * Les avis en attente ne doivent jamais fuiter côté client.
+   */
+  async findApproved(): Promise<Review[]> {
+    const { data, error } = await this.supabase.admin
+      .from('Review')
+      .select('*')
+      .eq('valide', true)
+      .order('createdAt', { ascending: false });
+    if (error) throw new BadRequestException(error.message);
+    return (data || []) as Review[];
+  }
+
   async findPending(): Promise<Review[]> {
     const { data, error } = await this.supabase.admin
       .from('Review')

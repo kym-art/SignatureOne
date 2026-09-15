@@ -23,6 +23,7 @@ import { OrderConfirmationView } from './components/checkout/OrderConfirmationVi
 import { OrderTrackingView } from './components/tracking/OrderTrackingView';
 import { getCurrentUser, subscribeAuth } from './lib/auth';
 import { hydrateOrdersFromSupabase, hydrateOrdersFromBackend } from './lib/orders';
+import { hydrateReviewsFromBackend } from './lib/reviews';
 import { refreshProductsFromBackend } from './lib/products';
 import { refreshStoreStatus } from './lib/store-settings';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
@@ -47,8 +48,11 @@ export default function App() {
   // Charge les commandes depuis Supabase au démarrage (source de vérité),
   // quand Supabase est configuré. Silencieux/sans effet sinon.
   useEffect(() => {
+    // Charge les commandes depuis Supabase au démarrage (source de vérité),
+    // quand Supabase est configuré. Silencieux/sans effet sinon.
     hydrateOrdersFromSupabase();
     hydrateOrdersFromBackend();
+    void hydrateReviewsFromBackend(); // avis validés (public) depuis le backend
     void refreshProductsFromBackend();
     void refreshStoreStatus();
   }, []);

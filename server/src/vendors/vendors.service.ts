@@ -70,9 +70,11 @@ export class VendorsService {
     if (checkErr) throw new BadRequestException(checkErr.message);
     if (existing) throw new ConflictException(`Un compte existe déjà avec le numéro ${phone}.`);
 
-    // 1. Utilisateur Supabase Auth
+    // 1. Utilisateur Supabase Auth — client SERVICE_ROLE obligatoire :
+    // auth.admin.* (createUser/updateUserById/deleteUser) rejette la clé anon
+    // (« This endpoint requires a valid Bearer token » → 500 en production).
     const email = `${phone.replace('+', '')}@signature-one.local`;
-    const { data: authUser, error: authErr } = await this.supabase.anonClient.auth.admin.createUser({
+    const { data: authUser, error: authErr } = await this.supabase.admin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
@@ -92,7 +94,7 @@ export class VendorsService {
     });
     if (profileErr) {
       // Rollback : supprime l'utilisateur Auth si le profil échoue
-      await this.supabase.anonClient.auth.admin.deleteUser(authUser.user.id).catch(() => {});
+      await this.supabase.admin.auth.admin.deleteUser(authUser.user.id).catch(() => {});
       throw new BadRequestException(`Création profil impossible : ${profileErr.message}`);
     }
 
@@ -133,7 +135,7 @@ export class VendorsService {
 
     if (dto.motDePasse) {
       if (!PWD_RE.test(dto.motDePasse)) throw new BadRequestException(PWD_MSG);
-      const { error: pwdErr } = await this.supabase.anonClient.auth.admin.updateUserById(
+      const { error: pwdErr } = await this.supabase.admin.auth.admin.updateUserById(
         id, { password: dto.motDePasse }
       );
       if (pwdErr) throw new BadRequestException(`MàJ mot de passe impossible : ${pwdErr.message}`);
@@ -155,7 +157,7 @@ export class VendorsService {
     const password = dto?.motDePasse?.trim() || generateTempPassword();
     if (!PWD_RE.test(password)) throw new BadRequestException(PWD_MSG);
 
-    const { error } = await this.supabase.anonClient.auth.admin.updateUserById(id, { password });
+    const { error } = await this.supabase.admin.auth.admin.updateUserById(id, { password });
     if (error) throw new BadRequestException(`Réinitialisation impossible : ${error.message}`);
 
     this.logger.log(`🔑 Mot de passe réinitialisé vendeur id=${id}`);

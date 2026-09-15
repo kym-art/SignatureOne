@@ -105,7 +105,10 @@ export class SettingsService {
 
     const { error } = await this.supabase.admin
       .from('StoreSetting')
-      .upsert({ key: this.CONFIG_KEY, value: config })
+      // onConflict obligatoire : la contrainte unique est sur `key` (pas la PK).
+      // Sans elle, PostgREST fait un INSERT simple → violation unique
+      // « StoreSetting_key_key » → l'admin ne pouvait pas enregistrer les horaires.
+      .upsert({ key: this.CONFIG_KEY, value: config }, { onConflict: 'key' })
       .select();
     if (error) throw new BadRequestException(`Sauvegarde settings: ${error.message}`);
 
