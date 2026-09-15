@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   PackagePlus,
   Search,
@@ -160,19 +160,42 @@ export const AdminProductsManagement: React.FC = () => {
   // plus JAMAIS de base64 (dépassait la limite @MaxLength(500) du backend).
   const [imageUploading, setImageUploading] = useState(false);
   const [imageUploadError, setImageUploadError] = useState<string | null>(null);
+  // Aperçu local instantané (object URL) : l'image choisie s'affiche
+  // immédiatement dans la modale, sans attendre la fin du téléversement.
+  const [localPreview, setLocalPreview] = useState<string | null>(null);
+  const previewRef = useRef<string | null>(null);
+
+  /** Remplace l'aperçu local en libérant l'ancien object URL. */
+  const swapPreview = (url: string | null) => {
+    if (previewRef.current && previewRef.current !== url) {
+      URL.revokeObjectURL(previewRef.current);
+    }
+    previewRef.current = url;
+    setLocalPreview(url);
+  };
+
+  // Libère l'object URL restant au démontage du composant.
+  useEffect(() => () => {
+    if (previewRef.current) URL.revokeObjectURL(previewRef.current);
+  }, []);
 
   const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean) => {
     const file = e.target.files?.[0];
+    // Reset de l'input : permet de re-choisir le MÊME fichier ensuite.
+    e.target.value = '';
     if (!file) return;
 
     setImageUploading(true);
     setImageUploadError(null);
+    swapPreview(URL.createObjectURL(file));
     try {
       const res = await uploadProductImage(file);
       if (!res.success || !res.url) {
         setImageUploadError(res.error || 'Erreur lors du téléversement de l\'image.');
+        swapPreview(null);
         return;
       }
+      swapPreview(null); // URL finale en place : on retire l'aperçu local
       if (isEdit && editingProduct) {
         setEditingProduct({ ...editingProduct, photoUrl: res.url });
       } else {
@@ -180,6 +203,7 @@ export const AdminProductsManagement: React.FC = () => {
       }
     } catch (err) {
       setImageUploadError('Erreur inattendue lors du téléversement de l\'image.');
+      swapPreview(null);
     } finally {
       setImageUploading(false);
     }
@@ -531,7 +555,7 @@ export const AdminProductsManagement: React.FC = () => {
                 <div className="flex items-center gap-3">
                   <div className="w-14 h-14 rounded-xl overflow-hidden bg-white border border-[#E5DDD0] shrink-0">
                     <img
-                      src={createForm.photoUrl || DEFAULT_PRODUCT_IMAGES.degueNature}
+                      src={localPreview || createForm.photoUrl || DEFAULT_PRODUCT_IMAGES.degueNature}
                       alt="Aperçu"
                       className="w-full h-full object-cover"
                     />
@@ -698,7 +722,7 @@ export const AdminProductsManagement: React.FC = () => {
                 <div className="flex items-center gap-3">
                   <div className="w-14 h-14 rounded-xl overflow-hidden bg-white border border-[#E5DDD0] shrink-0">
                     <img
-                      src={editingProduct.photoUrl || DEFAULT_PRODUCT_IMAGES.degueNature}
+                      src={localPreview || editingProduct.photoUrl || DEFAULT_PRODUCT_IMAGES.degueNature}
                       alt="Aperçu"
                       className="w-full h-full object-cover"
                     />
