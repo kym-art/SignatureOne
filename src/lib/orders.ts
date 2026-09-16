@@ -5,13 +5,17 @@
 
 import { Order, OrderItem, CreateOrderInput, SmsLog, SmsStatus, StatutCommande, StatutPaiement, ModePaiement, TypeCommande } from '../types';
 import { getProductById } from './products';
-import { supabase, isSupabaseConfigured } from './supabase';
 import { isMockDataEnabled } from './config';
-import { apiFetch, ApiError } from './api';
+import { apiFetch, ApiError, getApiToken } from './api';
 
-const STORAGE_ORDERS_KEY = 'signature_one_orders_v4';
-const STORAGE_COUNTER_KEY = 'signature_one_order_counter_v4';
-const STORAGE_MY_ORDERS_KEY = 'signature_one_my_orders_v1';
+// ─── Cache en mémoire (remplace localStorage) ──────────────────────────
+// Source de vérité : la DB via le backend (GET /orders pour les staff,
+// GET /orders/track/:numero pour le suivi public). Aucun localStorage n'est
+// plus utilisé pour stocker les commandes → plus de désynchronisation
+// inter-onglets et plus de page admin blanche sur cache corrompu.
+let ORDERS_CACHE: Order[] = [];
+let MY_ORDER_NUMEROS: string[] = [];
+let ORDER_COUNTER = 0;
 
 /**
  * Normalise une commande brute (ligne Supabase / réponse backend / cache
@@ -155,55 +159,38 @@ function notifySubscribers(): void {
   listeners.forEach((fn) => fn(current));
 }
 
-// Generate Next Sequential Human-Readable Order Number (e.g. SO-0004)
+// Compteur séquentiel SO-xxxx en mémoire (le numéro définitif provient du
+// backend dès que la commande est réellement créée en DB).
 function getNextOrderNumber(): string {
   if (typeof window === 'undefined') return `SO-000${Date.now().toString().slice(-4)}`;
-  try {
-    const raw = localStorage.getItem(STORAGE_COUNTER_KEY);
-    // Ne démarrer le compteur qu'aux échantillons de démo consommés en dev (3),
-    // sinon partir de 0 en production (aucune commande mockée).
-    const minCounter = isMockDataEnabled ? 3 : 0;
-    let counter = raw ? parseInt(raw, 10) : minCounter;
-    if (isNaN(counter) || counter < minCounter) {
-      counter = minCounter;
-    }
-    counter += 1;
-    localStorage.setItem(STORAGE_COUNTER_KEY, counter.toString());
-    const padded = String(counter).padStart(4, '0');
-    return `SO-${padded}`;
-  } catch {
-    const random = Math.floor(1000 + Math.random() * 9000);
-    return `SO-${random}`;
-  }
+  ORDER_COUNTER += 1;
+  const minCounter = isMockDataEnabled ? 3 : 0;
+  const counter = Math.max(ORDER_COUNTER, minCounter);
+  const padded = String(counter).padStart(4, '0');
+  return `SO-${padded}`;
 }
 
-// Load all orders
+// Retourne les commandes depuis le cache en mémoire (source: backend).
 export function getAllOrders(): Order[] {
   if (typeof window === 'undefined') return isMockDataEnabled ? INITIAL_ORDERS : [];
-  try {
-    const raw = localStorage.getItem(STORAGE_ORDERS_KEY);
-    if (!raw) {
-      if (isMockDataEnabled) {
-        localStorage.setItem(STORAGE_ORDERS_KEY, JSON.stringify(INITIAL_ORDERS));
-      }
-      return isMockDataEnabled ? INITIAL_ORDERS : [];
-    }
-    const parsed: unknown = JSON.parse(raw);
-    return normalizeOrders(parsed);
-  } catch {
-    return isMockDataEnabled ? INITIAL_ORDERS : [];
-  }
+  if (isMockDataEnabled) return INITIAL_ORDERS;
+  return ORDERS_CACHE;
 }
 
-// Save orders to store
+// Remplace le cache en mémoire (jamais localStorage) et notifie les abonnés.
 function saveOrders(orders: Order[]): void {
   if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(STORAGE_ORDERS_KEY, JSON.stringify(normalizeOrders(orders)));
-    notifySubscribers();
-  } catch (err) {
-    console.error('Failed to save orders:', err);
-  }
+  ORDERS_CACHE = (orders || []).slice();
+  notifySubscribers();
+}
+
+/** Met à jour (ou ajoute) une commande dans le cache en mémoire. */
+function upsertOrder(order: Order): void {
+  const orders = getAllOrders();
+  const idx = orders.findIndex((o) => o.id === order.id);
+  if (idx >= 0) orders[idx] = order;
+  else orders.unshift(order);
+  saveOrders(orders);
 }
 
 // Get order by ID
@@ -221,34 +208,45 @@ export function getOrderByNumero(numero: string): Order | undefined {
 }
 
 // ---------------------------------------------------------------------------
-// "Mes commandes" — restreindre le suivi client à ses propres commandes.
-// Les commandes passées depuis cet appareil (boutique/table) sont enregistrées
-// ici afin qu'un client puisse uniquement suivre les siennes. Les vendeurs et
-// administrateurs (connectés) voient, eux, toutes les commandes.
+// "Mes commandes" — numéros suivis par la session courante en mémoire.
+// Le localStorage est supprimé : la source de vérité est la DB. Un client
+// anonyme suit ses commandes par numéro via fetchOrderByNumero (GET public),
+// un staff via hydrateOrdersFromBackend (GET /orders, JWT).
 // ---------------------------------------------------------------------------
 export function getMyOrderNumeros(): string[] {
   if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(STORAGE_MY_ORDERS_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  return [...MY_ORDER_NUMEROS];
 }
 
 export function recordMyOrder(numero: string): void {
   if (typeof window === 'undefined') return;
-  try {
-    const list = getMyOrderNumeros();
-    if (!list.includes(numero)) {
-      list.push(numero);
-      localStorage.setItem(STORAGE_MY_ORDERS_KEY, JSON.stringify(list));
-    }
-  } catch {
-    // ignore
+  if (!MY_ORDER_NUMEROS.includes(numero)) {
+    MY_ORDER_NUMEROS.push(numero);
   }
 }
 
+/**
+ * Récupère une commande publique par son numéro : cache d'abord, sinon
+ * GET /api/orders/track/:numero (anonyme autorisé avec le numéro).
+ */
+export async function fetchOrderByNumero(numero: string): Promise<Order | undefined> {
+  const clean = (numero || '').trim().toUpperCase();
+  if (!clean) return undefined;
+  const cached = getOrderByNumero(clean);
+  if (cached) return cached;
+  try {
+    const order = await apiFetch<Order>(`/orders/track/${encodeURIComponent(clean)}`);
+    const normalized = normalizeOrder(order);
+    upsertOrder(normalized);
+    recordMyOrder(normalized.numero);
+    return normalized;
+  } catch (e) {
+    console.warn('[orders] fetchOrderByNumero:', e instanceof ApiError ? e.message : e);
+    return undefined;
+  }
+}
+
+// Retourne vrai si la session courante a déjà suivi cette commande.
 export function isMyOrder(numero: string): boolean {
   const clean = numero.trim().toUpperCase();
   return getMyOrderNumeros().some((n) => n.toUpperCase() === clean);
@@ -983,56 +981,31 @@ export async function confirmPayment(orderId: string): Promise<{ success: boolea
  */
 export async function hydrateOrdersFromBackend(): Promise<void> {
   if (typeof window === 'undefined') return;
+  // GET /orders exige le JWT (admin/vendeur). Un anonyme n'a pas de vue
+  // globale : il suit ses commandes par numéro (fetchOrderByNumero),
+  // depuis la DB via GET /api/orders/track/:numero.
+  if (!getApiToken()) return;
   try {
     const serverOrders = await apiFetch<Order[]>('/orders');
-    if (Array.isArray(serverOrders) && serverOrders.length > 0) {
-      const normalized = normalizeOrders(serverOrders);
-      const existing = getAllOrders();
-      const merged = [...existing.filter((e) => !normalized.some((s) => s.id === e.id)), ...normalized];
-      try {
-        localStorage.setItem(STORAGE_ORDERS_KEY, JSON.stringify(merged));
-      } catch (err) {
-        console.error('Failed to cache orders from backend:', err);
-      }
-    }
+    const normalized = normalizeOrders(serverOrders || []);
+    ORDERS_CACHE = normalized;
+    notifySubscribers();
   } catch (e) {
-    // Non authentifié ou backend injoignable : on garde le cache local.
-    console.warn('[orders] Hydratation depuis le backend ignorée :', e instanceof ApiError ? e.message : e);
+    console.warn('[orders] hydrateOrdersFromBackend:', e instanceof ApiError ? e.message : e);
   }
 }
 
 /**
- * Browser-only: hydrate the localStorage cache from Supabase so that
- * different devices see the same shared orders. Called once at app startup
- * (see App.tsx). Non-destructive: if Supabase is unconfigured or empty,
- * the local cache is left untouched.
+ * DÉPRÉCIE : la lecture directe Supabase (clé anon) côté navigateur a été
+ * abandonnée — le front passe par le backend (JWT service_role serveur) pour
+ * éviter de servir toutes les commandes aux clients anonymes. On délègue la
+ * charge utile à hydrateOrdersFromBackend (JWT requis pour les staff).
  *
- * NOTE : ce chemin de lecture s'exécute côté navigateur => il utilise le client
- * anon standard (soumis aux policies RLS), PAS la clé service_role.
+ * NOTE : historiquement ce chemin de lecture s'exécutait côté navigateur via
+ * le client anon Supabase (soumis aux policies RLS). Il n'est plus utilisé :
+ * le cache en mémoire est désormais alimenté par GET /api/orders (staff) ou
+ * GET /api/orders/track/:numero (suivi public).
  */
 export async function hydrateOrdersFromSupabase(): Promise<void> {
-  if (typeof window === 'undefined') return;
-  if (!isSupabaseConfigured) return;
-
-  try {
-    const { data } = await supabase
-      .from('Order')
-      .select('*')
-      .order('createdAt', { ascending: false });
-    const serverOrders = normalizeOrders(data || []);
-    if (serverOrders.length > 0) {
-      const existing = getAllOrders();
-      // Merge: keep local-only orders (e.g. currently mid-checkout) on top,
-      // then dedupe by id from the Supabase snapshot.
-      const merged = [...existing.filter((e) => !serverOrders.some((s) => s.id === e.id)), ...serverOrders];
-      try {
-        localStorage.setItem(STORAGE_ORDERS_KEY, JSON.stringify(merged));
-        notifySubscribers();
-      } catch (e) {
-        console.error('Failed to persist hydrated orders:', e);
-      }
-    }
-  } catch (err) {
-    console.warn('[orders] hydrateOrdersFromSupabase error (ignored):', err);
-  }
+  await hydrateOrdersFromBackend();
 }

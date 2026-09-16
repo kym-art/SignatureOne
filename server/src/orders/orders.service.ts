@@ -99,7 +99,29 @@ export class OrdersService {
     return { ...(data as Order), items: (items || []) as Order['items'] };
   }
 
-    private paymentStatusForMode(mode: ModePaiement): StatutPaiement {
+  /**
+   * Recherche une commande publique par son numéro lisible (ex: SO-0001).
+   * Utilisé par le suivi client (localStorage désactivé) : un anonyme peut
+   * récupérer sa commande depuis la DB avec son numéro de confirmation.
+   */
+  async findByNumero(numero: string): Promise<Order> {
+    const { data, error } = await this.supabase.admin
+      .from('Order')
+      .select('*')
+      .eq('numero', numero)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException('Commande introuvable');
+    const order = data as Order;
+    const { data: items, error: itemsErr } = await this.supabase.admin
+      .from('OrderItem')
+      .select('*')
+      .eq('orderId', order.id);
+    if (itemsErr) throw new BadRequestException(itemsErr.message);
+    return { ...order, items: (items || []) as Order['items'] };
+  }
+
+  private paymentStatusForMode(mode: ModePaiement): StatutPaiement {
     if (mode === 'LIVRAISON') return 'PAIEMENT_LIVRAISON';
     if (mode === 'SUR_PLACE') return 'PAIEMENT_SUR_PLACE';
     return 'EN_ATTENTE';
