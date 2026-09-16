@@ -94,7 +94,7 @@ export const VendeurDirectSaleView: React.FC<VendeurDirectSaleViewProps> = ({ on
       vendorId: currentUser.id,
       vendorName: currentUser.nom,
       clientNom: clientNom.trim() || 'Client Comptoir',
-      clientTel: clientTel.trim() || '+228 90 00 00 00',
+      clientTel: clientTel.trim(),
       typeCommande,
       tableId: typeCommande === 'SUR_PLACE' ? selectedTable : null,
       modePaiement,

@@ -308,7 +308,10 @@ export class OrdersService {
       id,
       numero: num,
       clientNom: input.clientNom?.trim() || 'Client Comptoir',
-      clientTel: input.clientTel?.trim() || '+228 90 00 00 00',
+      // Aucun numéro inventé : chaîne vide si le vendeur ne saisit pas le
+      // téléphone du client (l'UI affiche « — »). Évite d'écrire en base un
+      // faux numéro qui polluait les recherches et les reçus.
+      clientTel: input.clientTel?.trim() || '',
       typeCommande: (input.typeCommande ?? 'RETRAIT') as TypeCommande,
       tableId: input.tableId ?? null,
       adresseLivraison: null,

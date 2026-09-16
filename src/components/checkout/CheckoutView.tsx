@@ -8,6 +8,8 @@ import {
   CreditCard,
   Smartphone,
   Banknote,
+  Check,
+  Copy,
   CheckCircle2,
   AlertCircle,
   MapPin,
@@ -21,6 +23,7 @@ import { createOrder } from '../../lib/orders';
 import { getStoreStatusCached, subscribeStoreStatus, isOpenNow } from '../../lib/store-settings';
 import { StoreClosedNotice } from '../common/StoreStatusBanner';
 import { TypeCommande, ModePaiement, Order } from '../../types';
+import { getPaymentNumber } from '../../lib/config';
 
 interface CheckoutViewProps {
   initialTableId?: string | null;
@@ -73,6 +76,18 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
 
   // Payment Mode State
   const [modePaiement, setModePaiement] = useState<ModePaiement>('TMONEY');
+
+  // Numéro Mobile Money de collecte correspondant au canal choisi (lib/config).
+  const paymentNumber = getPaymentNumber(modePaiement);
+  const [copiedPaymentNumber, setCopiedPaymentNumber] = useState<boolean>(false);
+
+  const handleCopyPaymentNumber = () => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(paymentNumber.raw);
+      setCopiedPaymentNumber(true);
+      setTimeout(() => setCopiedPaymentNumber(false), 2000);
+    }
+  };
 
   // Submit & Error states
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -572,13 +587,30 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                   </strong>{' '}
                   à ce numéro :
                 </p>
-                <div className="bg-white rounded-xl border border-[#E5DDD0] p-3 text-center">
-                  <span className="text-base font-mono font-bold text-[#1F3D2E] tracking-wide">
-                    +228 92 00 00 00
-                  </span>
-                  <span className="block text-[10px] text-[#C9A24B] mt-1">
-                    {modePaiement === 'TMONEY' ? 'TMoney (Togocom)' : 'Flooz (Moov Money)'}
-                  </span>
+                <div className="bg-white rounded-xl border border-[#E5DDD0] p-3 flex items-center justify-between gap-3">
+                  <div className="text-left">
+                    <a
+                      href={paymentNumber.tel}
+                      className="text-base font-mono font-bold text-[#1F3D2E] tracking-wide hover:underline"
+                    >
+                      {paymentNumber.display}
+                    </a>
+                    <span className="block text-[10px] text-[#C9A24B] mt-1">
+                      {paymentNumber.label} ({paymentNumber.operator})
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCopyPaymentNumber}
+                    title="Copier le numéro Mobile Money"
+                    className="p-2 bg-[#FAF3E8] rounded-xl border border-[#E5DDD0] text-[#1F3D2E] hover:bg-[#1F3D2E] hover:text-[#FAF3E8] transition-colors shrink-0 cursor-pointer"
+                  >
+                    {copiedPaymentNumber ? (
+                      <Check className="w-4 h-4 text-emerald-600" />
+                    ) : (
+                      <Copy className="w-4 h-4" />
+                    )}
+                  </button>
                 </div>
                 <p className="text-[11px] text-[#53685C]">
                   <span className="font-semibold text-[#1F3D2E]">Montant à envoyer :</span>{' '}

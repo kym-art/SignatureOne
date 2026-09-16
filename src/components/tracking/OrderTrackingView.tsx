@@ -31,6 +31,7 @@ import {
   getReceptionModeDetails
 } from '../../lib/orders';
 import { getCurrentUser } from '../../lib/auth';
+import { getPaymentNumber, STORE_CONTACT } from '../../lib/config';
 import { ReceiptModal } from '../receipt/ReceiptModal';
 import { downloadReceiptPdf } from '../../lib/receipts';
 import { notify, requestNotificationPermission } from '../../lib/notify';
@@ -56,6 +57,8 @@ export const OrderTrackingView: React.FC<OrderTrackingViewProps> = ({
 }) => {
   const [searchNumero, setSearchNumero] = useState<string>(initialNumero);
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
+  // Numéro Mobile Money de collecte à afficher si la commande est en attente de paiement.
+  const trackingPaymentNumber = getPaymentNumber(currentOrder?.modePaiement || 'TMONEY');
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string>(new Date().toLocaleTimeString('fr-FR'));
   const [notFoundQuery, setNotFoundQuery] = useState<string | null>(null);
@@ -251,7 +254,10 @@ export const OrderTrackingView: React.FC<OrderTrackingViewProps> = ({
             Commande « {notFoundQuery} » introuvable
           </h3>
           <p className="text-xs text-[#53685C] max-w-sm mx-auto">
-            Veuillez vérifier le numéro inscrit sur votre confirmation ou contacter notre salon au +228 90 00 00 00.
+            Veuillez vérifier le numéro inscrit sur votre confirmation ou contacter notre salon au{' '}
+            <a href={STORE_CONTACT.companyPhoneUrl} className="font-bold text-[#1F3D2E] hover:underline">
+              {STORE_CONTACT.companyPhone}
+            </a>.
           </p>
           <button
             onClick={onContinueShopping}
@@ -362,7 +368,7 @@ export const OrderTrackingView: React.FC<OrderTrackingViewProps> = ({
 
                 <div className="flex items-center justify-between">
                   <span className="text-[#53685C]">Téléphone :</span>
-                  <span className="font-mono font-bold text-[#1F3D2E]">{currentOrder.clientTel}</span>
+                  <span className="font-mono font-bold text-[#1F3D2E]">{currentOrder.clientTel || '—'}</span>
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -439,6 +445,26 @@ export const OrderTrackingView: React.FC<OrderTrackingViewProps> = ({
                       Paiement Mobile Money en attente de confirmation par notre équipe après
                       vérification de votre transfert Flooz / TMoney.
                     </p>
+                    <div className="bg-[#FAF3E8] border border-[#C9A24B]/40 rounded-xl p-2.5 text-[10px] space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[#53685C]">
+                          Envoyez{' '}
+                          <strong className="text-[#1F3D2E]">
+                            {currentOrder.total.toLocaleString('fr-FR')} FCFA
+                          </strong>{' '}
+                          au :
+                        </span>
+                        <a
+                          href={trackingPaymentNumber.tel}
+                          className="font-mono font-bold text-[#1F3D2E] hover:underline"
+                        >
+                          {trackingPaymentNumber.display}
+                        </a>
+                      </div>
+                      <span className="block font-semibold text-[#C9A24B]">
+                        {trackingPaymentNumber.label} ({trackingPaymentNumber.operator})
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>
@@ -488,7 +514,12 @@ export const OrderTrackingView: React.FC<OrderTrackingViewProps> = ({
       <div className="bg-white p-5 rounded-2xl border border-[#E5DDD0] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#53685C] shadow-xs">
         <div className="flex items-center gap-2.5">
           <Phone className="w-4 h-4 text-[#C9A24B]" />
-          <span>Une question sur votre commande ? Appelez notre salon au <strong>+228 90 00 00 00</strong></span>
+          <span>
+            Une question sur votre commande ? Appelez notre salon au{' '}
+            <a href={STORE_CONTACT.companyPhoneUrl} className="font-bold text-[#1F3D2E] hover:underline">
+              {STORE_CONTACT.companyPhone}
+            </a>
+          </span>
         </div>
 
         <button

@@ -221,7 +221,7 @@ export const VendeurView: React.FC<VendeurViewProps> = ({ onBack }) => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
             <div>
               <p className="font-bold text-sm text-white">{newOrderToast.clientNom}</p>
-              <p className="text-stone-300 font-mono">{newOrderToast.clientTel}</p>
+              <p className="text-stone-300 font-mono">{newOrderToast.clientTel || '—'}</p>
               <p className="text-[11px] text-[#C9A24B] mt-1">
                 Type : {getReceptionModeDetails(newOrderToast.typeCommande).label}{' '}
                 {newOrderToast.tableId ? `(#${newOrderToast.tableId})` : ''}
@@ -283,7 +283,7 @@ export const VendeurView: React.FC<VendeurViewProps> = ({ onBack }) => {
           </div>
           <h1 className="font-serif text-2xl font-bold text-[#1F3D2E]">Espace Vendeur & Service Comptoir</h1>
           <p className="text-xs text-[#53685C]">
-            Connecté : <strong>{currentUser?.nom || 'Vendeur Signature One'}</strong> ({currentUser?.telephone || '+228 90 00 00 00'})
+            Connecté : <strong>{currentUser?.nom || 'Vendeur Signature One'}</strong> ({currentUser?.telephone || '—'})
           </p>
         </div>
 
@@ -451,7 +451,7 @@ export const VendeurView: React.FC<VendeurViewProps> = ({ onBack }) => {
 
                       <div className="text-xs">
                         <span className="font-bold text-[#1F3D2E]">{order.clientNom}</span>
-                        <span className="text-[#53685C] ml-2 font-mono">{order.clientTel}</span>
+                        <span className="text-[#53685C] ml-2 font-mono">{order.clientTel || '—'}</span>
                         {order.adresseLivraison && (
                           <p className="text-[11px] text-[#53685C] mt-0.5">
                             📍 {order.adresseLivraison}
@@ -628,7 +628,7 @@ export const VendeurView: React.FC<VendeurViewProps> = ({ onBack }) => {
                           </td>
                           <td className="p-3 font-medium text-[#1F3D2E]">
                             <div>{ord.clientNom}</div>
-                            <div className="text-[10px] text-[#53685C] font-mono">{ord.clientTel}</div>
+                            <div className="text-[10px] text-[#53685C] font-mono">{ord.clientTel || '—'}</div>
                           </td>
                           <td className="p-3">
                             <span className="bg-[#FAF3E8] text-[#1F3D2E] px-2 py-0.5 rounded border border-[#E5DDD0] text-[10px] font-semibold">

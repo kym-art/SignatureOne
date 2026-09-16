@@ -17,7 +17,7 @@ export class CreateVendorDto {
   @MaxLength(120)
   nom!: string;
 
-  /** Togolese mobile format, ex: +228 92 53 07 00 */
+  /** Format mobile togolais attendu, ex : +228 90 12 34 56 */
   @IsString()
   @IsNotEmpty()
   @MaxLength(30)

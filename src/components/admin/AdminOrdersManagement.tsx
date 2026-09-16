@@ -395,7 +395,7 @@ export const AdminOrdersManagement: React.FC<AdminOrdersManagementProps> = ({ or
                       </td>
                       <td className="p-3 font-medium text-[#1F3D2E]">
                         <div>{ord.clientNom}</div>
-                        <div className="text-[10px] text-[#53685C] font-mono">{ord.clientTel}</div>
+                        <div className="text-[10px] text-[#53685C] font-mono">{ord.clientTel || '—'}</div>
                         <span className="text-[9px] bg-[#FAF3E8] text-[#1F3D2E] px-1.5 py-0.5 rounded border border-[#E5DDD0] font-semibold">
                           {reception.label} {ord.tableId ? `(#${ord.tableId})` : ''}
                         </span>

@@ -2,6 +2,7 @@ import React from 'react';
 import { Printer, X, CheckCircle, Sparkles, Store, Coffee, Truck } from 'lucide-react';
 import { Order } from '../../types';
 import { getPaymentStatusDetails, getReceptionModeDetails } from '../../lib/orders';
+import { STORE_CONTACT } from '../../lib/config';
 
 interface VendeurReceiptModalProps {
   order: Order | null;
@@ -65,7 +66,7 @@ export const VendeurReceiptModal: React.FC<VendeurReceiptModalProps> = ({ order,
         <div class="header center">
           <div class="title">SIGNATURE ONE</div>
           <div class="sub">Dèguè • Yaourt • Boissons Bio</div>
-          <div class="sub">Lomé, Togo • Tél: +228 90 00 00 00</div>
+          <div class="sub">Lomé, Togo • Tél (TMoney / Flooz): ${STORE_CONTACT.receiptPhoneLine}</div>
           <div class="divider"></div>
           <div class="bold">REÇU DE CAISSE #${order.numero}</div>
           <div class="sub">${new Date(order.createdAt).toLocaleString('fr-FR')}</div>

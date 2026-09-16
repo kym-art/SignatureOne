@@ -121,7 +121,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBack }) => {
             Direction Générale Signature One
           </h1>
           <p className="text-xs text-[#53685C]">
-            Directeur : <strong>{currentUser?.nom || 'Directeur Général'}</strong> ({currentUser?.telephone || '+228 90 00 00 00'})
+            Directeur : <strong>{currentUser?.nom || 'Directeur Général'}</strong> ({currentUser?.telephone || '—'})
           </p>
         </div>
 

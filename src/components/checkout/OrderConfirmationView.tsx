@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Order } from '../../types';
 import { getStatusDetails, getPaymentStatusDetails, getReceptionModeDetails, getAllOrders } from '../../lib/orders';
+import { getPaymentNumber } from '../../lib/config';
 
 interface OrderConfirmationViewProps {
   order: Order | null;
@@ -33,6 +34,15 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
     return all.length > 0 ? all[0] : null;
   });
   const [copied, setCopied] = useState<boolean>(false);
+  const [copiedNumber, setCopiedNumber] = useState<boolean>(false);
+
+  const handleCopyNumber = (value: string) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(value);
+      setCopiedNumber(true);
+      setTimeout(() => setCopiedNumber(false), 2000);
+    }
+  };
 
   if (!currentOrder) {
     return (
@@ -51,6 +61,7 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
   }
 
   const order = currentOrder;
+  const paymentNumber = getPaymentNumber(order.modePaiement);
   const statusInfo = getStatusDetails(order.statut);
   const paymentInfo = getPaymentStatusDetails(order.statutPaiement);
   const receptionInfo = getReceptionModeDetails(order.typeCommande);
@@ -148,6 +159,38 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
                     Après votre transfert Flooz ou TMoney, notre équipe vérifie la réception du paiement et
                     valide votre commande. Le paiement en ligne automatisé arrivera bientôt.
                   </p>
+                  <div className="bg-white rounded-xl border border-[#E5DDD0] p-2.5 space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] text-[#53685C]">
+                        Envoyez{' '}
+                        <strong className="text-[#1F3D2E]">
+                          {order.total.toLocaleString('fr-FR')} FCFA
+                        </strong>{' '}
+                        au :
+                      </span>
+                      <a
+                        href={paymentNumber.tel}
+                        className="font-mono text-xs font-bold text-[#1F3D2E] hover:underline"
+                      >
+                        {paymentNumber.display}
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyNumber(paymentNumber.raw)}
+                        title="Copier le numéro Mobile Money"
+                        className="p-1.5 bg-[#FAF3E8] rounded-lg border border-[#E5DDD0] text-[#1F3D2E] hover:bg-[#1F3D2E] hover:text-[#FAF3E8] transition-colors shrink-0 cursor-pointer"
+                      >
+                        {copiedNumber ? (
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    </div>
+                    <span className="block text-[10px] font-semibold text-[#C9A24B]">
+                      {paymentNumber.label} ({paymentNumber.operator})
+                    </span>
+                  </div>
                 </div>
               )}
             </div>

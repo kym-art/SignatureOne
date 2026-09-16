@@ -8,6 +8,7 @@
 import { Order, StatutPaiement } from '../types';
 import { getOrderById, getAllOrders, getPaymentStatusDetails, getReceptionModeDetails } from './orders';
 import { generateQRCode } from './qr';
+import { STORE_CONTACT } from './config';
 
 const STORAGE_RECEIPT_COUNTER_KEY = 'signature_one_receipt_counter_v9';
 const STORAGE_RECEIPTS_KEY = 'signature_one_receipts_v9';
@@ -426,7 +427,7 @@ export async function buildReceiptA4Html(order: Order): Promise<string> {
             <div class="slogan">Le goût qui fait la différence</div>
             <div class="contact">
               Artisanat Gourmand & Boissons Naturelles<br>
-              Lomé, Togo • Tél : +228 90 00 00 00 / +228 91 00 00 00<br>
+              Lomé, Togo • Tél (TMoney / Flooz) : ${STORE_CONTACT.receiptPhoneLine}<br>
               service@signatureone.tg • www.signatureone.tg
             </div>
           </div>
@@ -471,7 +472,7 @@ export async function buildReceiptA4Html(order: Order): Promise<string> {
             </div>
             <div class="info-row">
               <span class="info-label">Téléphone :</span>
-              <span class="info-val">${order.clientTel}</span>
+              <span class="info-val">${order.clientTel || '—'}</span>
             </div>
             <div class="info-row">
               <span class="info-label">Mode Paiement :</span>

@@ -14,6 +14,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { Order } from '../../types';
+import { STORE_CONTACT } from '../../lib/config';
 import { getPaymentStatusDetails, getReceptionModeDetails } from '../../lib/orders';
 import { formatReceiptDate, printReceiptA4, downloadReceiptPdf, generateReceiptForOrder } from '../../lib/receipts';
 
@@ -130,7 +131,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, isOpen, onClo
                   Le goût qui fait la différence
                 </p>
                 <p className="text-[11px] text-[#53685C] mt-1 leading-relaxed">
-                  Lomé, Togo • Tél : +228 90 00 00 00<br />
+                  Lomé, Togo • Tél (TMoney / Flooz) : {STORE_CONTACT.receiptPhoneLine}<br />
                   contact@signatureone.tg
                 </p>
               </div>
@@ -184,7 +185,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, isOpen, onClo
                 </div>
                 <div className="flex justify-between">
                   <span className="text-[#53685C]">Téléphone :</span>
-                  <span className="font-mono text-[#1F3D2E]">{order.clientTel}</span>
+                  <span className="font-mono text-[#1F3D2E]">{order.clientTel || '—'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-[#53685C]">Mode de paiement :</span>
@@ -269,7 +270,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, isOpen, onClo
             <div className="text-center border-b border-dashed border-[#1F3D2E] pb-3 space-y-0.5">
               <div className="font-bold text-sm uppercase">SIGNATURE ONE</div>
               <div className="text-[10px] text-stone-600">Dèguè • Yaourt • Boissons Bio</div>
-              <div className="text-[10px] text-stone-600">Lomé, Togo • Tél: +228 90 00 00 00</div>
+              <div className="text-[10px] text-stone-600">Lomé, Togo • Tél: {STORE_CONTACT.companyPhone}</div>
               <div className="text-[11px] font-bold mt-1 text-[#C9A24B]">REÇU #{recuNumero}</div>
               <div className="text-[10px] text-stone-500">{dateStr}</div>
             </div>

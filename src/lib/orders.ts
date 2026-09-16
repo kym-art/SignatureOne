@@ -707,7 +707,7 @@ function createDirectSaleMock(input: DirectSaleInput): { success: boolean; order
     id: orderId,
     numero: orderNumero,
     clientNom: input.clientNom?.trim() || 'Client Comptoir',
-    clientTel: input.clientTel?.trim() || '+228 90 00 00 00',
+    clientTel: input.clientTel?.trim() || '',
     typeCommande,
     tableId: input.tableId || null,
     adresseLivraison: null,

@@ -127,7 +127,7 @@ export const AdminHistoryView: React.FC<AdminHistoryViewProps> = ({ orders }) =>
                       </td>
                       <td className="p-3 font-medium text-[#1F3D2E]">
                         <div>{ord.clientNom}</div>
-                        <div className="text-[10px] text-[#53685C] font-mono">{ord.clientTel}</div>
+                        <div className="text-[10px] text-[#53685C] font-mono">{ord.clientTel || '—'}</div>
                       </td>
                       <td className="p-3 whitespace-nowrap">
                         <span className="bg-[#FAF3E8] text-[#1F3D2E] px-2 py-0.5 rounded border border-[#E5DDD0] text-[10px] font-semibold">
