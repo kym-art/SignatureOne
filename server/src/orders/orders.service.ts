@@ -219,12 +219,16 @@ export class OrdersService {
     // Le statut de commande n'est avancé que s'il est encore NOUVELLE
     // (évite de faire reculer une commande déjà plus avancée).
     const nextStatut = current.statut === 'NOUVELLE' ? 'ACCEPTEE' : current.statut;
-    const { data, error } = await this.supabase.admin
+        const { data, error } = await this.supabase.admin
       .from('Order')
       .update({
         statutPaiement: 'PAYE',
         statut: nextStatut,
         datePaiement: new Date().toISOString(),
+        // ✅ Numéro + URL de reçu mintés serveur (source de vérité), comme
+        // createDirectSale. Idempotent : ne recrée pas de reçu existant.
+        recuNumero: current.recuNumero || `REC-${current.numero.replace('SO-', '')}`,
+        recuUrl: current.recuUrl || `/recu/${current.numero}`,
       })
       .eq('id', orderId)
       // ⚠️ Les commandes LIVRAISON/SUR_PLACE démarrent à PAIEMENT_LIVRAISON /
