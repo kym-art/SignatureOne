@@ -43,14 +43,15 @@ const INITIAL_REVIEWS: Review[] = [
   }
 ];
 
+// Cache mémoire (source de vérité = backend). Aucun localStorage.
+let reviewsCache: Review[] | null = null;
+
 type ReviewChangeListener = (reviews: Review[]) => void;
-const listeners: Set<ReviewChangeListener> = new Set();
+const listeners = new Set<ReviewChangeListener>();
 
 export function subscribeReviews(listener: ReviewChangeListener): () => void {
   listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
+  return () => listeners.delete(listener);
 }
 
 function notifySubscribers(): void {
@@ -59,29 +60,18 @@ function notifySubscribers(): void {
 }
 
 export function getAllReviews(): Review[] {
-  if (typeof window === 'undefined') return isMockDataEnabled ? INITIAL_REVIEWS : [];
-  try {
-    const raw = localStorage.getItem(STORAGE_REVIEWS_KEY);
-    if (!raw) {
-      if (isMockDataEnabled) {
-        localStorage.setItem(STORAGE_REVIEWS_KEY, JSON.stringify(INITIAL_REVIEWS));
-      }
-      return isMockDataEnabled ? INITIAL_REVIEWS : [];
-    }
-    return JSON.parse(raw);
-  } catch {
-    return isMockDataEnabled ? INITIAL_REVIEWS : [];
-  }
+  // Cache mémoire rafraîchi par hydrateReviewsFromBackend (DB = source de vérité).
+  // INITIAL_REVIEWS sert uniquement de fallback offline si USE_MOCK_DATA=true.
+  if (reviewsCache) return reviewsCache;
+  return isMockDataEnabled ? INITIAL_REVIEWS : [];
 }
 
 function saveReviews(reviews: Review[]): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(STORAGE_REVIEWS_KEY, JSON.stringify(reviews));
-    notifySubscribers();
-  } catch (err) {
-    console.error('Failed to save reviews:', err);
-  }
+  // Source de vérité = backend (GET /reviews). Le cache est un simple état
+  // mémoire volatil — AUCUN localStorage. Les mutations appellent déjà le backend
+  // ; ce setCache sert à rafraîchir l'UI immédiatement (optimiste).
+  reviewsCache = reviews;
+  notifySubscribers();
 }
 
 export function getApprovedReviews(): Review[] {
