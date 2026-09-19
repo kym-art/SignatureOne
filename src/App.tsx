@@ -26,6 +26,7 @@ import { getApiToken } from './lib/api';
 import { hydrateOrdersFromSupabase, hydrateOrdersFromBackend } from './lib/orders';
 import { hydrateReviewsFromBackend } from './lib/reviews';
 import { refreshProductsFromBackend } from './lib/products';
+import { refreshTablesFromBackend } from './lib/tables';
 import { refreshStoreStatus } from './lib/store-settings';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { User, AuthSession, Order } from './types';
@@ -51,10 +52,11 @@ export default function App() {
   // liste complète ; rafraîchie périodiquement pour suivre les changements de
   // statut/paiement venus d'un autre onglet ou d'une autre machine.
   useEffect(() => {
-    void hydrateOrdersFromSupabase();
+        void hydrateOrdersFromSupabase();
     void hydrateOrdersFromBackend();
     void hydrateReviewsFromBackend(); // avis validés (public) depuis le backend
     void refreshProductsFromBackend();
+    void refreshTablesFromBackend(); // tables TableQR depuis le backend
     void refreshStoreStatus();
 
     let refreshTimer: ReturnType<typeof setInterval> | undefined;

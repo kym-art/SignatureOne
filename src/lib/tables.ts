@@ -1,111 +1,90 @@
 /**
  * Signature One - Module 6: Tables & QR Codes Service
- * Modèle TableQR & Persistance locale / synchronisation
+ * Source de vérité : BACKEND (NestJS + Supabase service_role, table `TableQR`).
+ * AUCUN stockage : la liste est chargée depuis GET /api/tables (public, read-only)
+ * et conservée dans un cache mémoire volatil.
  */
-
 import { TableQR } from '../types';
-import { isMockDataEnabled } from './config';
+import { apiFetch, ApiError } from './api';
 
-const STORAGE_TABLES_KEY = 'signature_one_tables_v6';
+// Cache mémoire (source de vérité = backend, jamais localStorage)
+let tablesCache: TableQR[] | null = null;
 
-// Default initial tables (1 to 8)
-const DEFAULT_TABLES: TableQR[] = [
-  { id: 'tbl_1', numero: 1 },
-  { id: 'tbl_2', numero: 2 },
-  { id: 'tbl_3', numero: 3 },
-  { id: 'tbl_4', numero: 4 },
-  { id: 'tbl_5', numero: 5 },
-  { id: 'tbl_6', numero: 6 },
-  { id: 'tbl_7', numero: 7 },
-  { id: 'tbl_8', numero: 8 },
-];
+/** Fallback offline : tables 1..8 (jamais persisté côté client). */
+const DEFAULT_TABLES: TableQR[] = Array.from({ length: 8 }, (_, i) => ({
+  id: `tbl_default_${i + 1}`,
+  numero: i + 1,
+}));
 
+// Table Subscribers for React reactivity
+type TableListener = (tables: TableQR[]) => void;
+const listeners = new Set<TableListener>();
+
+export function subscribeTables(listener: TableListener): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function notifySubscribers(): void {
+  const current = getAllTables();
+  listeners.forEach((fn) => fn(current));
+}
+
+/** Le catalogue est chargé depuis le backend au démarrage. */
 export function getAllTables(): TableQR[] {
-  if (typeof window === 'undefined') return isMockDataEnabled ? DEFAULT_TABLES : [];
+  return tablesCache ?? [];
+}
+
+/**
+ * Charge les tables depuis le backend (GET /api/tables — public, read-only).
+ * Appelée au démarrage (App.tsx) et après chaque mutation admin.
+ */
+export async function refreshTablesFromBackend(): Promise<void> {
   try {
-    const raw = localStorage.getItem(STORAGE_TABLES_KEY);
-    if (!raw) {
-      if (isMockDataEnabled) {
-        localStorage.setItem(STORAGE_TABLES_KEY, JSON.stringify(DEFAULT_TABLES));
-      }
-      return isMockDataEnabled ? DEFAULT_TABLES : [];
-    }
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : (isMockDataEnabled ? DEFAULT_TABLES : []);
-  } catch (err) {
-    console.error('Error loading tables:', err);
-    return isMockDataEnabled ? DEFAULT_TABLES : [];
+    const tables = await apiFetch<TableQR[]>('/tables');
+    tablesCache = Array.isArray(tables) && tables.length > 0 ? tables : [...DEFAULT_TABLES];
+  } catch (e) {
+    console.warn('[tables] refreshTablesFromBackend:', e instanceof ApiError ? e.message : e);
+    // Fallback offline : tables par défaut (cache mémoire, pas de localStorage).
+    tablesCache = tablesCache ?? [...DEFAULT_TABLES];
   }
+  notifySubscribers();
 }
 
-function saveTables(tables: TableQR[]): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(STORAGE_TABLES_KEY, JSON.stringify(tables));
-    notifyTableListeners();
-  } catch (err) {
-    console.error('Error saving tables:', err);
-  }
-}
-
-export function createTable(numero: number): { success: boolean; table?: TableQR; error?: string } {
-  if (!numero || numero <= 0) {
-    return { success: false, error: 'Numéro de table invalide.' };
-  }
-
-  const tables = getAllTables();
-  if (tables.some((t) => t.numero === numero)) {
-    return { success: false, error: `La table #${numero} existe déjà.` };
-  }
-
-  const newTable: TableQR = {
-    id: `tbl_${numero}`,
-    numero,
-  };
-
-  // Keep sorted by numero
-  const updated = [...tables, newTable].sort((a, b) => a.numero - b.numero);
-  saveTables(updated);
-
-  return { success: true, table: newTable };
-}
-
-export function deleteTable(id: string): { success: boolean; error?: string } {
-  const tables = getAllTables();
-  const filtered = tables.filter((t) => t.id !== id);
-  if (filtered.length === tables.length) {
-    return { success: false, error: 'Table introuvable.' };
-  }
-
-  saveTables(filtered);
-  return { success: true };
+function setCache(tables: TableQR[]): void {
+  tablesCache = tables;
+  notifySubscribers();
 }
 
 export function getTableByNumero(numero: number): TableQR | undefined {
-  const tables = getAllTables();
-  return tables.find((t) => t.numero === numero);
+  return getAllTables().find((t) => t.numero === numero);
 }
 
 export function getTableById(id: string): TableQR | undefined {
-  const tables = getAllTables();
-  return tables.find((t) => t.id === id || t.id === `tbl_${id}`);
+  return getAllTables().find((t) => t.id === id || t.id === `tbl_${id}`);
 }
 
-type TableListener = (tables: TableQR[]) => void;
-const tableListeners: Set<TableListener> = new Set();
-
-export function subscribeTables(listener: TableListener): () => void {
-  tableListeners.add(listener);
-  return () => tableListeners.delete(listener);
+export async function createTable(numero: number): Promise<{ success: boolean; table?: TableQR; error?: string }> {
+  if (!numero || numero <= 0) {
+    return { success: false, error: 'Numéro de table invalide.' };
+  }
+  try {
+    const created = await apiFetch<TableQR>('/tables', { method: 'POST', body: { numero } });
+    setCache([...getAllTables(), created].sort((a, b) => a.numero - b.numero));
+    return { success: true, table: created };
+  } catch (e) {
+    const msg = e instanceof ApiError ? e.message : 'Erreur lors de la création de la table.';
+    return { success: false, error: msg };
+  }
 }
 
-function notifyTableListeners(): void {
-  const tables = getAllTables();
-  tableListeners.forEach((fn) => {
-    try {
-      fn(tables);
-    } catch (err) {
-      console.error('Error in table subscriber:', err);
-    }
-  });
+export async function deleteTable(id: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    await apiFetch<void>(`/tables/${id}`, { method: 'DELETE' });
+    setCache(getAllTables().filter((t) => t.id !== id));
+    return { success: true };
+  } catch (e) {
+    const msg = e instanceof ApiError ? e.message : 'Erreur lors de la suppression de la table.';
+    return { success: false, error: msg };
+  }
 }

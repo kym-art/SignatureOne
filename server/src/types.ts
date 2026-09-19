@@ -67,6 +67,17 @@ export interface Review {
   createdAt: string;
 }
 
+/**
+ * TableQR — données de table exposées au client.
+ * Source de vérité : table Supabase `TableQR` (id, numero). Le champ `numero`
+ * est unique (migration `TableQR_numero_key`). Aucun stockage côté client.
+ */
+export interface TableQR {
+  id: string;
+  numero: number;
+}
+
+
 export interface Expense {
   id: string;
   libelle: string;
