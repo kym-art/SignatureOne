@@ -84,3 +84,21 @@ export interface Expense {
   montant: number;
   createdAt: string;
 }
+
+/**
+ * SmsLog — journal serveur de la réconciliation mobile-money.
+ * La table SmsLog a RLS (aucun accès anon). Source de vérité côté admin = Supabase.
+ */
+export interface SmsLog {
+  id?: string;
+  sender: string;
+  message: string;
+  receivedAt: string;
+  parsedAmount?: number | null;
+  parsedSender?: string | null;
+  parsedBalance?: number | null;
+  previousBalance?: number | null;
+  matchedOrderId?: string | null;
+  status: SmsStatus;
+  createdAt?: string;
+}

@@ -847,11 +847,26 @@ export function getReceptionModeDetails(type: TypeCommande): { label: string; ic
 // Mobile Money SMS Logs & Automatic Payment Reconciliation (POC)
 // ============================================================================
 
-const STORAGE_SMS_LOGS_KEY = 'signature_one_sms_logs_v1';
+// Cache mémoire (source de vérité = backend + table SmsLog). AUCUN localStorage.
+let smsLogsCache: SmsLog[] | null = null;
+
+type SmsLogListener = (logs: SmsLog[]) => void;
+const smsLogListeners = new Set<SmsLogListener>();
+
+export function subscribeSmsLogs(listener: SmsLogListener): () => void {
+  smsLogListeners.add(listener);
+  return () => smsLogListeners.delete(listener);
+}
+
+function notifySmsLogListeners(): void {
+  const current = getAllSmsLogs();
+  smsLogListeners.forEach((fn) => fn(current));
+}
 
 /**
- * Persist an incoming SMS into the local SMS log store.
- * Used by the webhook handler and exposed in the admin for manual fallback.
+ * Persist an incoming SMS into the local SMS log store (cache mémoire).
+ * Source de vérité = backend (table SmsLog via service_role). Ce cache sert
+ * de fallback offline (dev) et d'hydrate pour l'admin.
  */
 export function saveSmsLog(log: Omit<SmsLog, 'id'>): SmsLog {
   const logs = getAllSmsLogs();
@@ -862,37 +877,41 @@ export function saveSmsLog(log: Omit<SmsLog, 'id'>): SmsLog {
     createdAt: new Date().toISOString(),
   };
   logs.unshift(entry);
-  saveSmsLogs(logs);
+  setCacheSmsLogs(logs);
   return entry;
 }
 
-function saveSmsLogs(logs: SmsLog[]): void {
-  try {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(STORAGE_SMS_LOGS_KEY, JSON.stringify(logs));
-    }
-  } catch {
-    // ignore storage errors
-  }
+/**
+ * Set the in-memory SMS logs cache (source de vérité = backend). AUCUN localStorage.
+ */
+function setCacheSmsLogs(logs: SmsLog[]): void {
+  smsLogsCache = logs;
+  notifySmsLogListeners();
 }
 
 /**
- * Get all persisted SMS logs (most recent first).
- * Safe to call in both browser and Node (webhook handler) contexts.
+ * Get all SMS logs (cache mémoire). Staff authentifié : hydrate depuis le
+ * backend (GET /api/sms-logs). Sinon fallback offline vide. Safe dans Node
+ * (webhook) et browser.
  */
 export function getAllSmsLogs(): SmsLog[] {
+  return smsLogsCache ?? [];
+}
+
+/**
+ * Hydrate le cache des SMS-logs depuis le backend (staff authentifié).
+ * Le webhook serveur persiste déjà en DB (SmsLog) ; cette hydrate sert
+ * l'historique affiçé dans l'admin depuis la DB.
+ */
+export async function hydrateSmsLogsFromBackend(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  if (!getApiToken()) return; // staff uniquement
   try {
-    if (typeof window !== 'undefined') {
-      const raw = localStorage.getItem(STORAGE_SMS_LOGS_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as SmsLog[];
-        if (Array.isArray(parsed)) return parsed;
-      }
-    }
-  } catch {
-    // ignore
+    const logs = await apiFetch<SmsLog[]>('/sms-logs');
+    if (Array.isArray(logs)) setCacheSmsLogs(logs);
+  } catch (e) {
+    console.warn('[orders] hydrateSmsLogsFromBackend:', e instanceof ApiError ? e.message : e);
   }
-  return [];
 }
 
 /**
@@ -941,8 +960,8 @@ function markSmsLogStatus(smsLogId: string, status: SmsStatus): void {
   const logs = getAllSmsLogs();
   const target = logs.find((l) => l.id === smsLogId);
   if (!target) return;
-  target.status = status;
-  saveSmsLogs(logs);
+    target.status = status;
+  setCacheSmsLogs(logs);
 }
 
 /**

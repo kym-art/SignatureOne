@@ -23,7 +23,7 @@ import { OrderConfirmationView } from './components/checkout/OrderConfirmationVi
 import { OrderTrackingView } from './components/tracking/OrderTrackingView';
 import { getCurrentUser, subscribeAuth } from './lib/auth';
 import { getApiToken } from './lib/api';
-import { hydrateOrdersFromSupabase, hydrateOrdersFromBackend } from './lib/orders';
+import { hydrateOrdersFromSupabase, hydrateOrdersFromBackend, hydrateSmsLogsFromBackend } from './lib/orders';
 import { hydrateReviewsFromBackend } from './lib/reviews';
 import { refreshProductsFromBackend } from './lib/products';
 import { refreshTablesFromBackend } from './lib/tables';
@@ -53,10 +53,11 @@ export default function App() {
   // statut/paiement venus d'un autre onglet ou d'une autre machine.
   useEffect(() => {
         void hydrateOrdersFromSupabase();
-    void hydrateOrdersFromBackend();
+        void hydrateOrdersFromBackend();
     void hydrateReviewsFromBackend(); // avis validés (public) depuis le backend
     void refreshProductsFromBackend();
     void refreshTablesFromBackend(); // tables TableQR depuis le backend
+    void hydrateSmsLogsFromBackend(); // historique SMS staff depuis le backend
     void refreshStoreStatus();
 
     let refreshTimer: ReturnType<typeof setInterval> | undefined;
