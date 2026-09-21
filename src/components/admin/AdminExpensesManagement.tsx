@@ -41,7 +41,7 @@ export const AdminExpensesManagement: React.FC = () => {
   const totalWeek = getTotalExpenses('week');
   const totalMonth = getTotalExpenses('month');
 
-  const handleCreateExpense = (e: React.FormEvent) => {
+    const handleCreateExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     setFeedback(null);
 
@@ -52,7 +52,7 @@ export const AdminExpensesManagement: React.FC = () => {
     }
 
     const isoDate = new Date(dateExpense).toISOString();
-    const res = createExpense(libelle, amountNum, isoDate);
+        const res = await createExpense(libelle, amountNum, isoDate);
 
     if (res.success) {
       setFeedback({ type: 'success', message: 'Dépense enregistrée avec succès.' });
@@ -64,9 +64,9 @@ export const AdminExpensesManagement: React.FC = () => {
     }
   };
 
-  const handleDeleteExpense = (id: string, lib: string) => {
+    const handleDeleteExpense = async (id: string, lib: string) => {
     if (window.confirm(`Confirmez-vous la suppression de la dépense "${lib}" ?`)) {
-      const res = deleteExpense(id);
+            const res = await deleteExpense(id);
       if (res.success) {
         setFeedback({ type: 'success', message: 'Dépense supprimée.' });
       }

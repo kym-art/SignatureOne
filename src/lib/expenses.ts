@@ -1,47 +1,22 @@
 /**
  * Signature One - Expenses Service (Module 8)
- * Handles CRUD on Expenses (libelle, montant, createdAt) for calculating net profits
+ * Source de vérité : BACKEND (NestJS, table `Expense`). AUCUN localStorage.
+ * - GET /expenses (staff JWT) : historique.
+ * - POST /expenses (admin/vendeur) : création.
+ * - DELETE /expenses/:id (admin/vendeur) : suppression.
  */
-
 import { Expense } from '../types';
+import { apiFetch, ApiError, getApiToken } from './api';
 
-const STORAGE_EXPENSES_KEY = 'signature_one_expenses_v1';
-
-const INITIAL_EXPENSES: Expense[] = [
-  {
-    id: 'exp_01',
-    libelle: 'Achat lait frais entier & ferments bio (Lomé Nord)',
-    montant: 18500,
-    createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'exp_02',
-    libelle: 'Fourniture Mil décortiqué & Couscous Dèguè artisanal',
-    montant: 12000,
-    createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'exp_03',
-    libelle: 'Conditionnements & Bouteilles thermos recyclables',
-    montant: 8500,
-    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'exp_04',
-    libelle: 'Approvisionnement Menthe fraîche, Gingembre & Ananas',
-    montant: 6000,
-    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-  }
-];
+// Cache mémoire (source de vérité = backend). Plus de INITIAL_EXPENSES persisté.
+let expensesCache: Expense[] | null = null;
 
 type ExpenseChangeListener = (expenses: Expense[]) => void;
-const listeners: Set<ExpenseChangeListener> = new Set();
+const listeners = new Set<ExpenseChangeListener>();
 
 export function subscribeExpenses(listener: ExpenseChangeListener): () => void {
   listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
+  return () => listeners.delete(listener);
 }
 
 function notifySubscribers(): void {
@@ -49,31 +24,31 @@ function notifySubscribers(): void {
   listeners.forEach((fn) => fn(current));
 }
 
+function setCache(expenses: Expense[]): void {
+  expensesCache = expenses;
+  notifySubscribers();
+}
+
 export function getAllExpenses(): Expense[] {
-  if (typeof window === 'undefined') return INITIAL_EXPENSES;
-  try {
-    const raw = localStorage.getItem(STORAGE_EXPENSES_KEY);
-    if (!raw) {
-      localStorage.setItem(STORAGE_EXPENSES_KEY, JSON.stringify(INITIAL_EXPENSES));
-      return INITIAL_EXPENSES;
-    }
-    return JSON.parse(raw);
-  } catch {
-    return INITIAL_EXPENSES;
-  }
+  return expensesCache ?? [];
 }
 
-function saveExpenses(expenses: Expense[]): void {
+/**
+ * Hydrate le cache des dépenses depuis le backend (staff authentifié).
+ * Silencieux si le backend est injoignable (cache local conservé).
+ */
+export async function refreshExpensesFromBackend(): Promise<void> {
   if (typeof window === 'undefined') return;
+  if (!getApiToken()) return; // staff uniquement
   try {
-    localStorage.setItem(STORAGE_EXPENSES_KEY, JSON.stringify(expenses));
-    notifySubscribers();
-  } catch (err) {
-    console.error('Failed to save expenses:', err);
+    const expenses = await apiFetch<Expense[]>('/expenses');
+    setCache(Array.isArray(expenses) ? expenses : []);
+  } catch (e) {
+    console.warn('[expenses] refreshExpensesFromBackend:', e instanceof ApiError ? e.message : e);
   }
 }
 
-export function createExpense(libelle: string, montant: number, dateIso?: string): { success: boolean; expense?: Expense; error?: string } {
+export async function createExpense(libelle: string, montant: number, dateIso?: string): Promise<{ success: boolean; expense?: Expense; error?: string }> {
   const cleanLibelle = libelle.trim();
   if (!cleanLibelle) {
     return { success: false, error: 'Le libellé de la dépense est obligatoire.' };
@@ -82,28 +57,28 @@ export function createExpense(libelle: string, montant: number, dateIso?: string
     return { success: false, error: 'Le montant de la dépense doit être supérieur à 0 FCFA.' };
   }
 
-  const newExpense: Expense = {
-    id: `exp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-    libelle: cleanLibelle,
-    montant: Math.round(montant),
-    createdAt: dateIso || new Date().toISOString(),
-  };
-
-  const all = getAllExpenses();
-  all.unshift(newExpense);
-  saveExpenses(all);
-
-  return { success: true, expense: newExpense };
+  try {
+    const created = await apiFetch<Expense>('/expenses', {
+      method: 'POST',
+      body: { libelle: cleanLibelle, montant: Math.round(montant), dateIso },
+    });
+    setCache([created, ...getAllExpenses()]);
+    return { success: true, expense: created };
+  } catch (e) {
+    const message = e instanceof ApiError ? e.message : 'Erreur lors de la création de la dépense.';
+    return { success: false, error: message };
+  }
 }
 
-export function deleteExpense(id: string): { success: boolean; error?: string } {
-  const all = getAllExpenses();
-  const filtered = all.filter((e) => e.id !== id);
-  if (filtered.length === all.length) {
-    return { success: false, error: 'Dépense introuvable.' };
+export async function deleteExpense(id: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    await apiFetch<void>(`/expenses/${id}`, { method: 'DELETE' });
+    setCache(getAllExpenses().filter((e) => e.id !== id));
+    return { success: true };
+  } catch (e) {
+    const message = e instanceof ApiError ? e.message : 'Erreur lors de la suppression de la dépense.';
+    return { success: false, error: message };
   }
-  saveExpenses(filtered);
-  return { success: true };
 }
 
 export function getTotalExpenses(period: 'today' | 'week' | 'month' | 'all' = 'all'): number {
