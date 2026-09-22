@@ -38,11 +38,6 @@ export class CreateProductDto {
   disponible?: boolean;
 
   @IsOptional()
-  @IsInt()
-  @Min(0)
-  quantiteRestante?: number | null;
-
-  @IsOptional()
   @IsBoolean()
   actif?: boolean;
 
@@ -82,11 +77,6 @@ export class UpdateProductDto {
   @IsOptional()
   @IsBoolean()
   disponible?: boolean;
-
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  quantiteRestante?: number | null;
 
   @IsOptional()
   @IsBoolean()
