@@ -14,7 +14,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { Order } from '../../types';
-import { getStatusDetails, getPaymentStatusDetails, getReceptionModeDetails, getAllOrders } from '../../lib/orders';
+import { getStatusDetails, getPaymentStatusDetails, getReceptionModeDetails } from '../../lib/orders';
 import { getPaymentNumber } from '../../lib/config';
 
 interface OrderConfirmationViewProps {
@@ -29,9 +29,11 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
   onContinueShopping,
 }) => {
   const [currentOrder, setCurrentOrder] = useState<Order | null>(() => {
+    // Confidentialité : sans propOrder (commande qui vient d'être passée),
+    // on n'affiche RIEN. L'ancien fallback `all[0]` exposait la commande
+    // (nom/tél/adresse/panier) de quelqu'un d'autre après refresh/F5.
     if (propOrder) return propOrder;
-    const all = getAllOrders();
-    return all.length > 0 ? all[0] : null;
+    return null;
   });
   const [copied, setCopied] = useState<boolean>(false);
   const [copiedNumber, setCopiedNumber] = useState<boolean>(false);

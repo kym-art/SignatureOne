@@ -524,8 +524,11 @@ export const VendeurView: React.FC<VendeurViewProps> = ({ onBack }) => {
                           </button>
                         )}
 
-                        {/* 3. Confirm Payment Button if unpaid */}
-                        {order.statutPaiement !== 'PAYE' && (
+                        {/* 3. Confirm Payment Button if unpaid.
+                            Seul le vendeur en charge (ou ADMIN) encaisse : une commande
+                            prise par un collègue affiche "Pris par X" au lieu du bouton
+                            (le serveur rejetterait avec 403 de toute façon). */}
+                        {order.statutPaiement !== 'PAYE' && (isClaimedByMe || currentUser?.role === 'ADMIN' || isUnclaimed) ? (
                           <button
                             onClick={() => handleConfirmPayment(order.id)}
                             className="bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300 text-xs font-bold px-2.5 py-2 rounded-xl transition-all flex items-center gap-1 cursor-pointer"
@@ -534,7 +537,14 @@ export const VendeurView: React.FC<VendeurViewProps> = ({ onBack }) => {
                             <Banknote className="w-3.5 h-3.5 text-emerald-700" />
                             <span>Encaisser</span>
                           </button>
-                        )}
+                        ) : order.statutPaiement !== 'PAYE' && isClaimedByOther ? (
+                          <span
+                            className="text-[10px] px-2.5 py-2 rounded-xl font-semibold bg-stone-100 text-stone-500 border border-stone-200"
+                            title={`Commande prise en charge par ${order.vendeur?.nom || 'un collègue'} — encaissement réservé`}
+                          >
+                            🔒 Pris par {order.vendeur?.nom || 'un collègue'}
+                          </span>
+                        ) : null}
 
                         {/* 4. Print Receipt */}
                         <button
