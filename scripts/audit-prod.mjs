@@ -45,7 +45,7 @@ async function req(path, { method = 'GET', token, body } = {}) {
   r = await req('/products');
   const products = Array.isArray(r.data) ? r.data : [];
   t(r.status === 200 && products.length > 0, 'PRODUCTS: GET public → 200', products.length + ' produit(s)');
-  r = await req('/products', { method: 'POST', token: adminToken, body: { nom: 'AUDIT-TEST Produit', description: 'test audit', format: 'Pot 350ml', prix: 1000, disponible: true, quantiteRestante: 5 } });
+  r = await req('/products', { method: 'POST', token: adminToken, body: { nom: 'AUDIT-TEST Produit', description: 'test audit', format: 'Pot 350ml', prix: 1000, disponible: true } });
   const testProduct = r.data;
   t(r.status === 200 || r.status === 201, 'PRODUCTS: POST création (admin) → ' + r.status, 'id=' + testProduct?.id);
   r = await req(`/products/${testProduct.id}`, { method: 'PATCH', token: adminToken, body: { prix: 1200 } });

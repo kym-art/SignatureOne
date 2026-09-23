@@ -5,7 +5,6 @@
 
 import { Order, OrderItem, CreateOrderInput, SmsLog, SmsStatus, StatutCommande, StatutPaiement, ModePaiement, TypeCommande } from '../types';
 import { getProductById } from './products';
-import { isMockDataEnabled } from './config';
 import { apiFetch, ApiError, getApiToken } from './api';
 
 // ─── Cache en mémoire (remplace localStorage) ──────────────────────────
@@ -60,89 +59,6 @@ function normalizeOrders(list: unknown): Order[] {
   return (Array.isArray(list) ? list : []).map(normalizeOrder);
 }
 
-// Initial sample orders for preview & demonstration
-const INITIAL_ORDERS: Order[] = [
-  {
-    id: 'ord_sample_0001',
-    numero: 'SO-0001',
-    clientNom: 'Koffi Mensah',
-    clientTel: '+22890123456',
-    typeCommande: 'LIVRAISON',
-    adresseLivraison: 'Tokoin Doumasséssé, près de la pharmacie du Point, Immeuble Blanc porte 2',
-    statut: 'EN_PREPARATION',
-    statutPaiement: 'EN_ATTENTE',
-    modePaiement: 'TMONEY',
-    total: 3000,
-    createdAt: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
-    items: [
-      {
-        id: 'item_01',
-        orderId: 'ord_sample_0001',
-        productId: 'prod_degue_nature',
-        quantite: 2,
-        prixUnitaire: 1500,
-      },
-    ],
-  },
-  {
-    id: 'ord_sample_0002',
-    numero: 'SO-0002',
-    clientNom: 'Abla Lawson',
-    clientTel: '+22891987654',
-    typeCommande: 'SUR_PLACE',
-    tableId: 'tbl_03',
-    statut: 'ACCEPTEE',
-    statutPaiement: 'PAIEMENT_SUR_PLACE',
-    modePaiement: 'SUR_PLACE',
-    total: 4300,
-    createdAt: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
-    items: [
-      {
-        id: 'item_02',
-        orderId: 'ord_sample_0002',
-        productId: 'prod_degue_vanille_coco',
-        quantite: 1,
-        prixUnitaire: 1800,
-      },
-      {
-        id: 'item_03',
-        orderId: 'ord_sample_0002',
-        productId: 'prod_yaourt_pur_lait',
-        quantite: 1,
-        prixUnitaire: 2500,
-      },
-    ],
-  },
-  {
-    id: 'ord_sample_0003',
-    numero: 'SO-0003',
-    clientNom: 'Foly Edoh',
-    clientTel: '+22892334455',
-    typeCommande: 'RETRAIT',
-    statut: 'NOUVELLE',
-    statutPaiement: 'PAIEMENT_SUR_PLACE',
-    modePaiement: 'SUR_PLACE',
-    total: 2200,
-    createdAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
-    items: [
-      {
-        id: 'item_04',
-        orderId: 'ord_sample_0003',
-        productId: 'prod_bissap_menthe',
-        quantite: 1,
-        prixUnitaire: 1000,
-      },
-      {
-        id: 'item_05',
-        orderId: 'ord_sample_0003',
-        productId: 'prod_gingembre_ananas',
-        quantite: 1,
-        prixUnitaire: 1200,
-      },
-    ],
-  },
-];
-
 // Order Reactivity Subscription
 type OrderChangeListener = (orders: Order[]) => void;
 const listeners: Set<OrderChangeListener> = new Set();
@@ -164,16 +80,12 @@ function notifySubscribers(): void {
 function getNextOrderNumber(): string {
   if (typeof window === 'undefined') return `SO-000${Date.now().toString().slice(-4)}`;
   ORDER_COUNTER += 1;
-  const minCounter = isMockDataEnabled ? 3 : 0;
-  const counter = Math.max(ORDER_COUNTER, minCounter);
-  const padded = String(counter).padStart(4, '0');
+  const padded = String(ORDER_COUNTER).padStart(4, '0');
   return `SO-${padded}`;
 }
 
 // Retourne les commandes depuis le cache en mémoire (source: backend).
 export function getAllOrders(): Order[] {
-  if (typeof window === 'undefined') return isMockDataEnabled ? INITIAL_ORDERS : [];
-  if (isMockDataEnabled) return INITIAL_ORDERS;
   return ORDERS_CACHE;
 }
 
@@ -424,62 +336,6 @@ export async function updateOrderStatus(orderId: string, newStatus: StatutComman
 }
 
 /**
- * Update order payment status
- */
-export function updateOrderPaymentStatus(orderId: string, newStatus: StatutPaiement): { success: boolean; order?: Order; error?: string } {
-  const orders = getAllOrders();
-  const index = orders.findIndex((o) => o.id === orderId);
-  if (index === -1) {
-    return { success: false, error: 'Commande introuvable.' };
-  }
-
-  orders[index].statutPaiement = newStatus;
-
-  // Module 9: Auto-generate receipt when transitioning to PAYE
-  if (newStatus === 'PAYE') {
-    if (!orders[index].recuNumero) {
-      const suffix = orders[index].numero.startsWith('SO-')
-        ? orders[index].numero.replace('SO-', '')
-        : Date.now().toString().slice(-4);
-      orders[index].recuNumero = `REC-${suffix}`;
-      orders[index].recuUrl = `/recu/${orders[index].numero}`;
-      orders[index].datePaiement = new Date().toISOString();
-    }
-  }
-
-  saveOrders(orders);
-
-  // La persistance durable d'un paiement se fait désormais via le backend
-  // (PATCH /api/orders/:id/pay, confirmPayment). Ici on ne met à jour que le
-  // cache local ; l'écriture Supabase directe depuis le navigateur est
-  // supprimée (bloquée par RLS et interdite par la nouvelle architecture).
-  console.warn(
-    `[orders] updateOrderPaymentStatus(${orderId}, ${newStatus}) : cache local uniquement — la persistance passe par le backend.`
-  );
-
-  // Trigger global browser event for receipts
-  if (newStatus === 'PAYE' && typeof window !== 'undefined') {
-    try {
-      window.dispatchEvent(
-        new CustomEvent('signature_one:receipt_ready', {
-          detail: {
-            order: orders[index],
-            receiptNumber: orders[index].recuNumero,
-            timestamp: new Date().toISOString(),
-          },
-        })
-      );
-    } catch {
-      // ignore
-    }
-  }
-
-  return { success: true, order: orders[index] };
-}
-
-export const updateOrderPayment = updateOrderPaymentStatus;
-
-/**
  * Revert d'un paiement validé (PAYE → EN_ATTENTE) : persisté via le BACKEND
  * (PATCH /api/orders/:id/unpay, réservé ADMIN), puis cache local synchronisé.
  */
@@ -627,36 +483,32 @@ export async function createDirectSale(input: DirectSaleInput): Promise<{ succes
   // Persistance via le BACKEND (POST /api/orders/direct-sale) : la vente est
   // immédiatement TERMINEE + PAYE, assignée à l'utilisateur du JWT, et le
   // numéro de commande/ reçu est généré côté serveur (source de vérité).
-  if (!isMockDataEnabled) {
-    try {
-      const created = await apiFetch<Order>('/orders/direct-sale', {
-        method: 'POST',
-        body: {
-          clientNom: input.clientNom,
-          clientTel: input.clientTel,
-          typeCommande: input.typeCommande,
-          tableId: input.tableId,
-          modePaiement: input.modePaiement,
-          items: input.items.map((it) => ({
-            productId: it.productId,
-            quantite: it.quantite,
-            prixUnitaire: it.prixUnitaire,
-          })),
-        },
-      });
-      const orders = getAllOrders();
-      orders.unshift(created);
-      saveOrders(orders);
-      dispatchReceiptEvent(created);
-      return { success: true, order: created };
-    } catch (e) {
-      const message =
-        e instanceof ApiError ? e.message : 'Erreur lors de l’enregistrement de la vente.';
-      return { success: false, error: message };
-    }
+  try {
+    const created = await apiFetch<Order>('/orders/direct-sale', {
+      method: 'POST',
+      body: {
+        clientNom: input.clientNom,
+        clientTel: input.clientTel,
+        typeCommande: input.typeCommande,
+        tableId: input.tableId,
+        modePaiement: input.modePaiement,
+        items: input.items.map((it) => ({
+          productId: it.productId,
+          quantite: it.quantite,
+          prixUnitaire: it.prixUnitaire,
+        })),
+      },
+    });
+    const orders = getAllOrders();
+    orders.unshift(created);
+    saveOrders(orders);
+    dispatchReceiptEvent(created);
+    return { success: true, order: created };
+  } catch (e) {
+    const message =
+      e instanceof ApiError ? e.message : 'Erreur lors de l’enregistrement de la vente.';
+    return { success: false, error: message };
   }
-
-  return createDirectSaleMock(input);
 }
 
 /** Événement navigateur pour l'ouverture automatique du reçu. */
@@ -676,81 +528,6 @@ function dispatchReceiptEvent(order: Order): void {
       // ignore
     }
   }
-}
-
-/** Variante mock locale — utilisée UNIQUEMENT quand USE_MOCK_DATA=true (dév). */
-function createDirectSaleMock(input: DirectSaleInput): { success: boolean; order?: Order; error?: string } {
-  const orderId = `ord_direct_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-  const orderNumero = getNextOrderNumber();
-  const typeCommande: TypeCommande = input.typeCommande || 'RETRAIT';
-
-  let total = 0;
-  const orderItems: OrderItem[] = input.items.map((item, index) => {
-    const product = getProductById(item.productId);
-    const unitPrice = item.prixUnitaire || (product ? product.prix : 0);
-    const subtotal = unitPrice * item.quantite;
-    total += subtotal;
-
-    return {
-      id: `item_dir_${Date.now()}_${index}`,
-      orderId,
-      productId: item.productId,
-      product: product || undefined,
-      quantite: item.quantite,
-      prixUnitaire: unitPrice,
-    };
-  });
-
-  const newOrder: Order = {
-    id: orderId,
-    numero: orderNumero,
-    clientNom: input.clientNom?.trim() || 'Client Comptoir',
-    clientTel: input.clientTel?.trim() || '',
-    typeCommande,
-    tableId: input.tableId || null,
-    adresseLivraison: null,
-    statut: 'TERMINEE', // Immediate completion (Module 7 spec)
-    statutPaiement: 'PAYE', // Immediate payment confirmed (Module 7 spec)
-    modePaiement: input.modePaiement,
-    total,
-    vendeurId: input.vendorId,
-    vendeur: {
-      id: input.vendorId,
-      nom: input.vendorName,
-      telephone: '',
-      role: 'VENDEUR',
-      actif: true,
-      createdAt: new Date().toISOString(),
-    },
-    items: orderItems,
-    recuNumero: `REC-${orderNumero.replace('SO-', '')}`,
-    recuUrl: `/recu/${orderNumero}`,
-    datePaiement: new Date().toISOString(),
-    createdAt: new Date().toISOString(),
-  };
-
-  const orders = getAllOrders();
-  orders.unshift(newOrder);
-  saveOrders(orders);
-
-  // Dispatch browser custom event
-  if (typeof window !== 'undefined') {
-    try {
-      window.dispatchEvent(
-        new CustomEvent('signature_one:receipt_ready', {
-          detail: {
-            order: newOrder,
-            receiptNumber: `REC-${newOrder.numero}`,
-            timestamp: new Date().toISOString(),
-          },
-        })
-      );
-    } catch {
-      // ignore
-    }
-  }
-
-  return { success: true, order: newOrder };
 }
 
 /**
@@ -936,18 +713,12 @@ export function reconcilePaymentFromSms(
   }
 
   const order = candidates[0];
-  if (isMockDataEnabled) {
-    // Mode mock explicite : mise à jour locale uniquement.
-    order.statutPaiement = 'PAYE';
-    order.datePaiement = new Date().toISOString();
-  } else {
-    // Sinon la validation passe par le backend (source de vérité).
-    void confirmPayment(order.id).then((res) => {
-      if (!res.success) {
-        console.error('[orders] Rapprochement SMS : échec de validation via backend :', res.error);
-      }
-    });
-  }
+  // La validation passe par le backend (source de vérité).
+  void confirmPayment(order.id).then((res) => {
+    if (!res.success) {
+      console.error('[orders] Rapprochement SMS : échec de validation via backend :', res.error);
+    }
+  });
   order.statut = order.statut === 'NOUVELLE' ? 'ACCEPTEE' : order.statut;
   saveOrders(orders);
   markSmsLogStatus(smsLogId, 'MATCHED');

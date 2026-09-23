@@ -15,8 +15,9 @@ import { RolesGuard } from './common/auth/guards/roles.guard';
 import { TablesModule } from './tables/tables.module';
 import { SmsLogsModule } from './sms-logs/sms-logs.module';
 import { ExpensesModule } from './expenses/expenses.module';
+import { PaymentsModule } from './payments/payments.module';
 @Module({
-  imports: [CoreModule, AuthModule, OrdersModule, ProductsModule, ReviewsModule, TablesModule, SmsLogsModule, ExpensesModule, VendorsModule, SettingsModule, UploadsModule, HealthModule],
+  imports: [CoreModule, AuthModule, OrdersModule, ProductsModule, ReviewsModule, TablesModule, SmsLogsModule, ExpensesModule, PaymentsModule, VendorsModule, SettingsModule, UploadsModule, HealthModule],
   // Guards globaux : l'accès repose sur le JWT serveur, jamais sur le localStorage.
   // ValidationPipe global : validation runtime de TOUS les body des routes
   // (les DTOs sont des classes avec décorateurs class-validator).

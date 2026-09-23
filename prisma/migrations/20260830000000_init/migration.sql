@@ -36,7 +36,6 @@ CREATE TABLE "Product" (
     "prix" INTEGER NOT NULL,
     "photoUrl" TEXT,
     "disponible" BOOLEAN NOT NULL DEFAULT true,
-    "quantiteRestante" INTEGER,
     "actif" BOOLEAN NOT NULL DEFAULT true,
     "misEnAvant" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

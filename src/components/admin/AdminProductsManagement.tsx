@@ -46,7 +46,6 @@ export const AdminProductsManagement: React.FC = () => {
     prix: 1500,
     photoUrl: DEFAULT_PRODUCT_IMAGES.degueNature,
     disponible: true,
-    quantiteRestante: 20,
     actif: true,
     misEnAvant: false,
   });
@@ -93,7 +92,6 @@ export const AdminProductsManagement: React.FC = () => {
     const res = await createProduct({
       ...createForm,
       prix: Number(createForm.prix),
-      quantiteRestante: createForm.quantiteRestante ? Number(createForm.quantiteRestante) : null,
     });
 
     if (res.success) {
@@ -105,7 +103,6 @@ export const AdminProductsManagement: React.FC = () => {
         prix: 1500,
         photoUrl: DEFAULT_PRODUCT_IMAGES.degueNature,
         disponible: true,
-        quantiteRestante: 20,
         actif: true,
         misEnAvant: false,
       });
@@ -127,7 +124,6 @@ export const AdminProductsManagement: React.FC = () => {
       prix: Number(editingProduct.prix),
       photoUrl: editingProduct.photoUrl,
       disponible: editingProduct.disponible,
-      quantiteRestante: editingProduct.quantiteRestante !== null ? Number(editingProduct.quantiteRestante) : null,
       actif: editingProduct.actif,
       misEnAvant: editingProduct.misEnAvant,
     });
@@ -359,10 +355,6 @@ export const AdminProductsManagement: React.FC = () => {
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs pt-0.5">
                       <span className="font-serif font-bold text-sm text-[#C9A24B]">
                         {p.prix.toLocaleString('fr-FR')} FCFA
-                      </span>
-                      <span className="text-[11px] text-stone-400">•</span>
-                      <span className="text-[11px] text-[#53685C]">
-                        {p.quantiteRestante !== null ? `Stock: ${p.quantiteRestante} unité(s)` : 'Stock: Non plafonné'}
                       </span>
                       <span className="text-[11px] text-stone-400">•</span>
                       <span

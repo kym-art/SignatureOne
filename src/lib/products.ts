@@ -158,7 +158,6 @@ export async function createProduct(input: CreateProductInput): Promise<{ succes
         prix: Math.round(input.prix),
         photoUrl: input.photoUrl?.trim() || DEFAULT_PRODUCT_IMAGES.degueNature,
         disponible: input.disponible !== undefined ? input.disponible : true,
-        quantiteRestante: input.quantiteRestante !== undefined ? input.quantiteRestante : null,
         actif: input.actif !== undefined ? input.actif : true,
         misEnAvant: input.misEnAvant !== undefined ? input.misEnAvant : false,
       },
@@ -182,7 +181,6 @@ export async function updateProduct(id: string, input: UpdateProductInput): Prom
     prix: input.prix !== undefined ? Math.round(input.prix) : undefined,
     photoUrl: input.photoUrl,
     disponible: input.disponible,
-    quantiteRestante: input.quantiteRestante,
     actif: input.actif,
     misEnAvant: input.misEnAvant,
   };

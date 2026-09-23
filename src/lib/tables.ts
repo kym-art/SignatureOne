@@ -10,12 +10,6 @@ import { apiFetch, ApiError } from './api';
 // Cache mémoire (source de vérité = backend, jamais localStorage)
 let tablesCache: TableQR[] | null = null;
 
-/** Fallback offline : tables 1..8 (jamais persisté côté client). */
-const DEFAULT_TABLES: TableQR[] = Array.from({ length: 8 }, (_, i) => ({
-  id: `tbl_default_${i + 1}`,
-  numero: i + 1,
-}));
-
 // Table Subscribers for React reactivity
 type TableListener = (tables: TableQR[]) => void;
 const listeners = new Set<TableListener>();
@@ -42,11 +36,11 @@ export function getAllTables(): TableQR[] {
 export async function refreshTablesFromBackend(): Promise<void> {
   try {
     const tables = await apiFetch<TableQR[]>('/tables');
-    tablesCache = Array.isArray(tables) && tables.length > 0 ? tables : [...DEFAULT_TABLES];
+    tablesCache = Array.isArray(tables) ? tables : [];
   } catch (e) {
     console.warn('[tables] refreshTablesFromBackend:', e instanceof ApiError ? e.message : e);
-    // Fallback offline : tables par défaut (cache mémoire, pas de localStorage).
-    tablesCache = tablesCache ?? [...DEFAULT_TABLES];
+    // Backend injoignable : conserve le cache existant (liste vide sinon).
+    tablesCache = tablesCache ?? [];
   }
   notifySubscribers();
 }

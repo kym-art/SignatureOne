@@ -22,17 +22,16 @@ model User {
 }
 
 model Product {
-  id               String   @id @default(cuid())
-  nom              String
-  description      String
-  format           String
-  prix             Int
-  photoUrl         String?
-  disponible       Boolean  @default(true)
-  quantiteRestante Int?
-  actif            Boolean  @default(true)
-  misEnAvant       Boolean  @default(false)
-  createdAt        DateTime @default(now())
+  id          String  @id @default(cuid())
+  nom         String
+  description String
+  format      String
+  prix        Int
+  photoUrl    String?
+  disponible  Boolean @default(true)
+  actif       Boolean @default(true)
+  misEnAvant  Boolean @default(false)
+  createdAt   DateTime @default(now())
 }
 
 model TableQR {

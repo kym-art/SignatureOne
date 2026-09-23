@@ -9,6 +9,7 @@ import { Order, StatutPaiement } from '../types';
 import { getOrderById, getAllOrders, getPaymentStatusDetails, getReceptionModeDetails } from './orders';
 import { generateQRCode } from './qr';
 import { STORE_CONTACT } from './config';
+import { getProductById } from './products';
 
 export interface ReceiptRecord {
   id: string;
@@ -130,26 +131,34 @@ export async function buildReceiptA4Html(order: Order): Promise<string> {
   }
 
   const itemsRows = order.items
-    .map(
-      (item, idx) => `
+    .map((item, idx) => {
+      // Nom réel du produit : la jointure serveur (attachProductNames) le fournit
+      // dans `item.product` ; sinon on retombe sur le catalogue en mémoire, puis
+      // sur un libellé neutre (jamais « Article Artisanal », qui masquait le nom).
+      const product = item.product || getProductById(item.productId);
+      const nom = product?.nom || `Article #${String(item.productId || '').slice(-4)}`;
+      const format = product?.format || 'Format standard';
+      const quantite = item.quantite ?? 0;
+      const prixUnitaire = item.prixUnitaire ?? 0;
+      return `
       <tr style="border-bottom: 1px solid #EFE9DF;">
         <td style="padding: 10px 8px; text-align: center; color: #53685C; font-size: 12px;">${idx + 1}</td>
         <td style="padding: 10px 8px;">
-          <div style="font-weight: 700; color: #1F3D2E; font-size: 13px;">${item.product?.nom || 'Article Artisanal'}</div>
-          <div style="font-size: 11px; color: #7A8B7F;">${item.product?.format || 'Format standard'}</div>
+          <div style="font-weight: 700; color: #1F3D2E; font-size: 13px;">${nom}</div>
+          <div style="font-size: 11px; color: #7A8B7F;">${format}</div>
         </td>
         <td style="padding: 10px 8px; text-align: center; font-weight: 700; color: #1F3D2E; font-size: 13px;">
-          ${item.quantite}
+          ${quantite}
         </td>
         <td style="padding: 10px 8px; text-align: right; color: #53685C; font-size: 13px; font-family: monospace;">
-          ${item.prixUnitaire.toLocaleString('fr-FR')} F
+          ${prixUnitaire.toLocaleString('fr-FR')} F
         </td>
         <td style="padding: 10px 8px; text-align: right; font-weight: 700; color: #1F3D2E; font-size: 13px; font-family: monospace;">
-          ${(item.quantite * item.prixUnitaire).toLocaleString('fr-FR')} FCFA
+          ${(quantite * prixUnitaire).toLocaleString('fr-FR')} FCFA
         </td>
       </tr>
-    `
-    )
+    `;
+    })
     .join('');
 
   return `

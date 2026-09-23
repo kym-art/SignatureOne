@@ -19,7 +19,6 @@ import {
   BarChart3,
   Star,
   History,
-  AlertTriangle,
   Sparkles,
   Store,
   ChevronRight,
@@ -38,7 +37,6 @@ import { AdminHistoryView } from './AdminHistoryView';
 import { AdminSmsLogsManagement } from './AdminSmsLogsManagement';
 import { getCurrentUser } from '../../lib/auth';
 import { getAllOrders, subscribeOrders, getStatusDetails, getPaymentStatusDetails } from '../../lib/orders';
-import { getAllProducts } from '../../lib/products';
 import { getTotalExpenses, subscribeExpenses } from '../../lib/expenses';
 import { getPendingReviews, subscribeReviews } from '../../lib/reviews';
 import { Order } from '../../types';
@@ -57,7 +55,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBack }) => {
   const [pendingReviewsCount, setPendingReviewsCount] = useState<number>(getPendingReviews().length);
 
   const currentUser = getCurrentUser();
-  const products = getAllProducts();
 
   useEffect(() => {
     setOrders(getAllOrders());
@@ -95,10 +92,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBack }) => {
 
   const estimatedTodayProfit = todayCA - todayExpenses;
 
-  // Stock alerts (produits en rupture ou stock faible)
-  const lowStockProducts = products.filter(
-    (p) => p.quantiteRestante !== null && p.quantiteRestante !== undefined && p.quantiteRestante <= 10
-  );
+  // (Alertes de stock supprimées : ventes illimitées, pas de compteur.)
 
   return (
     <div id="admin-view-container" className="space-y-6 pb-16">
@@ -325,29 +319,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBack }) => {
             </div>
 
           </div>
-
-          {/* Stock Alerts Widget if low stock */}
-          {lowStockProducts.length > 0 && (
-            <div className="bg-amber-50 border border-amber-300 rounded-3xl p-5 shadow-xs space-y-3">
-              <div className="flex items-center gap-2 text-amber-900 font-bold text-xs">
-                <AlertTriangle className="w-4 h-4 text-amber-700" />
-                <span>Alerte Stock : {lowStockProducts.length} produit(s) en quantité critique (≤ 10 unités)</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                {lowStockProducts.map((p) => (
-                  <div key={p.id} className="bg-white p-3 rounded-xl border border-amber-200 flex justify-between items-center">
-                    <div>
-                      <strong className="text-[#1F3D2E] block">{p.nom}</strong>
-                      <span className="text-[10px] text-[#53685C]">{p.format}</span>
-                    </div>
-                    <span className="font-mono font-bold text-amber-900 bg-amber-100 px-2 py-1 rounded-lg">
-                      {p.quantiteRestante ?? 0} restant(s)
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Quick Access Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
