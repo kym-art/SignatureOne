@@ -65,6 +65,13 @@ const listeners: Set<OrderChangeListener> = new Set();
 
 export function subscribeOrders(listener: OrderChangeListener): () => void {
   listeners.add(listener);
+  // Envoie l'état courant immédiatement : un composant monté après une
+  // hydrate voit les données sans attendre le prochain poke/polling.
+  try {
+    listener(getAllOrders());
+  } catch {
+    // Un listener ne doit jamais casser le store.
+  }
   return () => {
     listeners.delete(listener);
   };
@@ -146,6 +153,18 @@ export async function fetchOrderByNumero(numero: string): Promise<Order | undefi
   if (!clean) return undefined;
   const cached = getOrderByNumero(clean);
   if (cached) return cached;
+  return refreshOrderByNumero(clean);
+}
+
+/**
+ * Re-fetch FORCÉ d'une commande par son numéro depuis le serveur
+ * (GET /api/orders/track/:numero), même si le cache en a déjà une copie.
+ * Utilisé par le polling du suivi client : sans force, le client garderait
+ * indéfiniment le vieux statut lu au premier chargement.
+ */
+export async function refreshOrderByNumero(numero: string): Promise<Order | undefined> {
+  const clean = (numero || '').trim().toUpperCase();
+  if (!clean) return undefined;
   try {
     const order = await apiFetch<Order>(`/orders/track/${encodeURIComponent(clean)}`);
     const normalized = normalizeOrder(order);
@@ -153,8 +172,8 @@ export async function fetchOrderByNumero(numero: string): Promise<Order | undefi
     recordMyOrder(normalized.numero);
     return normalized;
   } catch (e) {
-    console.warn('[orders] fetchOrderByNumero:', e instanceof ApiError ? e.message : e);
-    return undefined;
+    console.warn('[orders] refreshOrderByNumero:', e instanceof ApiError ? e.message : e);
+    return getOrderByNumero(clean);
   }
 }
 
@@ -632,6 +651,14 @@ const smsLogListeners = new Set<SmsLogListener>();
 
 export function subscribeSmsLogs(listener: SmsLogListener): () => void {
   smsLogListeners.add(listener);
+  // Envoie l'état courant immédiatement : un composant monté après une
+  // hydrate (ex. AdminSmsLogsManagement ouvert après login) affiche
+  // les données au lieu d'attendre le prochain cycle de sync.
+  try {
+    listener(getAllSmsLogs());
+  } catch {
+    // Un listener ne doit jamais casser le store.
+  }
   return () => smsLogListeners.delete(listener);
 }
 

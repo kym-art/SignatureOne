@@ -17,6 +17,11 @@ const listeners = new Set<ReviewChangeListener>();
 
 export function subscribeReviews(listener: ReviewChangeListener): () => void {
   listeners.add(listener);
+  try {
+    listener(getAllReviews());
+  } catch {
+    // Un listener ne doit jamais casser le store.
+  }
   return () => listeners.delete(listener);
 }
 
@@ -77,7 +82,10 @@ export async function hydrateReviewsFromBackend(includePending = false): Promise
       }
     }
     const merged = [...pending, ...approved];
-    if (merged.length > 0) saveReviews(merged);
+    // Toujours remplacer (même liste vide) : sinon une suppression côté
+    // serveur (modération) n'est jamais propagée aux clients qui gardent
+    // l'ancien cache. La DB reste la source de vérité.
+    saveReviews(merged);
   } catch {
     // backend injoignable : cache local conservé
   }

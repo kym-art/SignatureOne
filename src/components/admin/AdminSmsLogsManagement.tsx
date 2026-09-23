@@ -8,7 +8,7 @@
  * This component is client-side only and reads/writes the SMS logs plus
  * orders from the shared local store (see lib/orders.ts).
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Inbox,
   MessageSquare,
@@ -21,6 +21,8 @@ import {
 import {
   getAllSmsLogs,
   getAllOrders,
+  subscribeSmsLogs,
+  subscribeOrders,
   confirmPayment,
   reconcilePaymentFromSms,
 } from '../../lib/orders';
@@ -35,8 +37,19 @@ const STATUS_LABEL: Record<SmsLog['status'], { label: string; badge: string }> =
 
 export const AdminSmsLogsManagement: React.FC = () => {
   const [logs, setLogs] = useState<SmsLog[]>(getAllSmsLogs());
-  const [orders] = useState<Order[]>(getAllOrders());
+  // Abonné au store (et non figé au mount) : les SMS et commandes arrivés
+  // via polling/Realtime après l'ouverture de l'onglet s'affichent sans F5.
+  const [orders, setOrders] = useState<Order[]>(getAllOrders());
   const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsubLogs = subscribeSmsLogs(setLogs);
+    const unsubOrders = subscribeOrders(setOrders);
+    return () => {
+      unsubLogs();
+      unsubOrders();
+    };
+  }, []);
 
   const refresh = () => setLogs(getAllSmsLogs());
 

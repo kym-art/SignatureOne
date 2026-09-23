@@ -16,6 +16,11 @@ const listeners = new Set<ExpenseChangeListener>();
 
 export function subscribeExpenses(listener: ExpenseChangeListener): () => void {
   listeners.add(listener);
+  try {
+    listener(getAllExpenses());
+  } catch {
+    // Un listener ne doit jamais casser le store.
+  }
   return () => listeners.delete(listener);
 }
 

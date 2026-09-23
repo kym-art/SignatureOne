@@ -27,6 +27,11 @@ const listeners: Set<ProductChangeListener> = new Set();
 
 export function subscribeProducts(listener: ProductChangeListener): () => void {
   listeners.add(listener);
+  try {
+    listener(getAllProducts());
+  } catch {
+    // Un listener ne doit jamais casser le store.
+  }
   return () => {
     listeners.delete(listener);
   };

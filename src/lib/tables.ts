@@ -16,6 +16,11 @@ const listeners = new Set<TableListener>();
 
 export function subscribeTables(listener: TableListener): () => void {
   listeners.add(listener);
+  try {
+    listener(getAllTables());
+  } catch {
+    // Un listener ne doit jamais casser le store.
+  }
   return () => listeners.delete(listener);
 }
 

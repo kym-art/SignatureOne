@@ -22,13 +22,14 @@ import { CheckoutView } from './components/checkout/CheckoutView';
 import { OrderConfirmationView } from './components/checkout/OrderConfirmationView';
 import { OrderTrackingView } from './components/tracking/OrderTrackingView';
 import { getCurrentUser, subscribeAuth } from './lib/auth';
-import { getApiToken } from './lib/api';
 import { hydrateOrdersFromSupabase, hydrateOrdersFromBackend, hydrateSmsLogsFromBackend } from './lib/orders';
 import { hydrateReviewsFromBackend } from './lib/reviews';
 import { refreshProductsFromBackend } from './lib/products';
 import { refreshTablesFromBackend } from './lib/tables';
 import { refreshExpensesFromBackend } from './lib/expenses';
 import { refreshStoreStatus } from './lib/store-settings';
+import { startGlobalSync, stopGlobalSync, syncNow } from './lib/sync';
+import { startRealtimeSync, stopRealtimeSync } from './lib/realtime';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { User, AuthSession, Order } from './types';
 import { ShieldAlert, ArrowLeft } from 'lucide-react';
@@ -50,27 +51,55 @@ export default function App() {
 
   // Charge les commandes depuis le backend au démarrage (source de vérité = DB),
   // en cache mémoire (localStorage désactivé). Les staff (JWT) reçoivent la
-  // liste complète ; rafraîchie périodiquement pour suivre les changements de
-  // statut/paiement venus d'un autre onglet ou d'une autre machine.
+  // liste complète ; la sync globale (polling 5s/30s + Supabase Realtime)
+  // propage ensuite les changements venus d'un autre onglet ou machine
+  // (ex. prise en charge vendeur → admin) sans F5.
   useEffect(() => {
-        void hydrateOrdersFromSupabase();
-        void hydrateOrdersFromBackend();
+    void hydrateOrdersFromSupabase();
+    void hydrateOrdersFromBackend();
     void hydrateReviewsFromBackend(); // avis validés (public) depuis le backend
     void refreshProductsFromBackend();
-        void refreshTablesFromBackend(); // tables TableQR depuis le backend
+    void refreshTablesFromBackend(); // tables TableQR depuis le backend
     void hydrateSmsLogsFromBackend(); // historique SMS staff depuis le backend
     void refreshExpensesFromBackend(); // dépenses staff depuis le backend
     void refreshStoreStatus();
 
-    let refreshTimer: ReturnType<typeof setInterval> | undefined;
-    if (getApiToken()) {
-      refreshTimer = setInterval(() => {
-        void hydrateOrdersFromBackend();
-      }, 20000);
-    }
-    return () => {
-      if (refreshTimer) clearInterval(refreshTimer);
+    // Polling global (5s commandes / 30s reste) + temps réel Postgres.
+    // Idempotents : le login/logout ci-dessous ne crée jamais 2 timers.
+    startGlobalSync();
+    startRealtimeSync();
+
+    // Retour sur l'onglet / la fenêtre → re-sync immédiate (l'admin qui
+    // revient voit la prise en charge vendeur sans attendre le tick).
+    const onVisible = () => void syncNow();
+    const onVisibility = () => {
+      if (!document.hidden) void syncNow();
     };
+    window.addEventListener('focus', onVisible);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('focus', onVisible);
+      document.removeEventListener('visibilitychange', onVisibility);
+      stopRealtimeSync();
+      stopGlobalSync();
+    };
+  }, []);
+
+  // Login/logout → (re)démarre ou stoppe la sync :
+  // avant ce fix, le timer n'était créé qu'au mount (sans JWT en navigation
+  // publique) et jamais après login → l'admin connecté ne pollait plus.
+  useEffect(() => {
+    const unsub = subscribeAuth((session) => {
+      if (session) {
+        startGlobalSync();
+        void syncNow();
+      } else {
+        stopGlobalSync();
+      }
+    });
+    // Si un JWT existe déjà au mount (session persistée), la sync tourne
+    // déjà via l'effet ci-dessus — pas besoin de double démarrage.
+    return unsub;
   }, []);
 
   // Discret accès réservé à l'équipe (les boutons Admin / Vendeur / Connexion
@@ -136,9 +165,12 @@ export default function App() {
   const handleLoginSuccess = (session: AuthSession) => {
     setRedirectReason(null);
     // Après login (admin/vendeur) : recharge les commandes RÉELLES depuis le
-    // backend (avec items). L'hydratation au démarrage s'exécute sans JWT et
-    // laisse un cache Supabase anon sans items — source de la page admin blanche.
-    void hydrateOrdersFromBackend();
+    // backend (avec items) + (re)démarre la sync globale. L'hydratation au
+    // démarrage s'exécute sans JWT et laisse un cache vide — sans ce restart,
+    // le polling ne démarrait jamais après un login post-mount.
+    startGlobalSync();
+    startRealtimeSync();
+    void syncNow();
     if (session.user.role === 'ADMIN') {
       setCurrentTab('admin');
     } else {

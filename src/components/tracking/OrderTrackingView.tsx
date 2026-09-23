@@ -27,6 +27,7 @@ import {
   subscribeOrders,
   isMyOrder,
   fetchOrderByNumero,
+  refreshOrderByNumero,
   getStatusDetails,
   getPaymentStatusDetails,
   getReceptionModeDetails
@@ -105,6 +106,28 @@ export const OrderTrackingView: React.FC<OrderTrackingViewProps> = ({
     return unsub;
   }, [initialNumero, isStaff]);
 
+  // Suivi client : re-fetch serveur du numéro suivi toutes les 8s.
+  // Le client anonyme n'a pas GET /orders : seul fetchOrderByNumero (public)
+  // peut lui apporter le nouveau statut. Pause si l'onglet est caché.
+  // Le staff est déjà couvert par la sync globale (5s + Realtime).
+  useEffect(() => {
+    if (isStaff) return;
+    const numero = (searchNumero || initialNumero).trim();
+    if (!numero) return;
+    const timer = setInterval(() => {
+      if (document.hidden) return;
+      void (async () => {
+        // Re-fetch forcé serveur : fetchOrderByNumero retournerait le cache.
+        const found = await refreshOrderByNumero(numero);
+        if (found && isMyOrder(found.numero)) {
+          setCurrentOrder(found);
+          setLastRefreshedAt(new Date().toLocaleTimeString('fr-FR'));
+        }
+      })();
+    }, 8000);
+    return () => clearInterval(timer);
+  }, [searchNumero, initialNumero, isStaff]);
+
   // Notifie le client (et joue le jingle) dès que sa commande passe à "PRETE".
   useEffect(() => {
     requestNotificationPermission();
@@ -146,16 +169,16 @@ export const OrderTrackingView: React.FC<OrderTrackingViewProps> = ({
 
   const handleManualRefresh = () => {
     setIsRefreshing(true);
-    setTimeout(() => {
+    // Re-fetch forcé serveur (le cache seul ne verrait jamais le changement
+    // de statut/paiement venu d'un autre appareil).
+    void (async () => {
       if (searchNumero) {
-        void (async () => {
-          const found = getOrderByNumero(searchNumero) ?? (await fetchOrderByNumero(searchNumero));
-          if (found && (isStaff || isMyOrder(found.numero))) setCurrentOrder(found);
-        })();
+        const found = await refreshOrderByNumero(searchNumero);
+        if (found && (isStaff || isMyOrder(found.numero))) setCurrentOrder(found);
       }
       setIsRefreshing(false);
       setLastRefreshedAt(new Date().toLocaleTimeString('fr-FR'));
-    }, 400);
+    })();
   };
 
   const statusDetails = currentOrder ? getStatusDetails(currentOrder.statut) : null;
