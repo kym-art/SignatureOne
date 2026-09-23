@@ -75,6 +75,12 @@ export const OrderTrackingView: React.FC<OrderTrackingViewProps> = ({
   const notifiedReadyRef = useRef<Set<string>>(new Set());
 
   // Load initial order or first available order
+  // Confidentialité : un visiteur anonyme ne voit RIEN par défaut.
+  // - Avec initialNumero (retour de commande / confirmation) : on charge
+  //   uniquement CE numéro (vérifié "mien" ou staff).
+  // - Sans initialNumero : écran vide + champ de saisie. On ne pré-charge
+  //   JAMAIS visible[0] pour un anonyme (fuite de nom/tél/adresse).
+  // - Staff (ADMIN/VENDEUR) : garde l'ancien confort (1ʳᵉ commande affichée).
   useEffect(() => {
     if (initialNumero) {
       // Cache d'abord, sinon récupération serveur publique par numéro (DB).
@@ -86,14 +92,16 @@ export const OrderTrackingView: React.FC<OrderTrackingViewProps> = ({
           setNotFoundQuery(initialNumero);
         }
       })();
-    } else {
-      // Un client ne voit que ses propres commandes.
+    } else if (isStaff) {
+      // Staff uniquement : pré-affiche la 1ʳᵉ commande (vue globale).
       const all = getAllOrders();
-      const visible = isStaff ? all : all.filter((o) => isMyOrder(o.numero));
-      if (visible.length > 0) {
-        setCurrentOrder(visible[0]);
-        setSearchNumero(visible[0].numero);
+      if (all.length > 0) {
+        setCurrentOrder(all[0]);
+        setSearchNumero(all[0].numero);
       }
+    } else {
+      // Anonyme sans code : rien d'affiché (que le champ de recherche).
+      setCurrentOrder(null);
     }
 
     const unsub = subscribeOrders(() => {
@@ -185,7 +193,10 @@ export const OrderTrackingView: React.FC<OrderTrackingViewProps> = ({
   const currentStep = statusDetails ? statusDetails.step : 1;
   const paymentDetails = currentOrder ? getPaymentStatusDetails(currentOrder.statutPaiement) : null;
   const receptionDetails = currentOrder ? getReceptionModeDetails(currentOrder.typeCommande) : null;
-  const recentOrders = (isStaff ? getAllOrders() : getAllOrders().filter((o) => isMyOrder(o.numero))).slice(0, 4);
+  // Confidentialité : la barre "Récents" (numéro + prénom) n'est affichée
+  // qu'au staff. Pour un anonyme, même ses propres numéros ne sont pas
+  // listés : il saisit son code, point.
+  const recentOrders = isStaff ? getAllOrders().slice(0, 4) : [];
 
   return (
     <div id="order-tracking-container" className="max-w-4xl mx-auto space-y-6 pb-16">
@@ -294,6 +305,21 @@ export const OrderTrackingView: React.FC<OrderTrackingViewProps> = ({
           >
             Retourner à la boutique
           </button>
+        </div>
+      )}
+
+      {/* État vide anonyme : rien à montrer tant qu'aucun code n'est saisi.
+          Évite toute fuite (nom/tél/adresse) sur un écran partagé. */}
+      {!currentOrder && !notFoundQuery && !isStaff && (
+        <div className="bg-white rounded-3xl p-8 border border-[#E5DDD0] text-center space-y-3 shadow-xs">
+          <Package className="w-10 h-10 text-[#C9A24B] mx-auto" />
+          <h3 className="font-serif font-bold text-lg text-[#1F3D2E]">
+            Suivez votre commande
+          </h3>
+          <p className="text-xs text-[#53685C] max-w-sm mx-auto">
+            Saisissez ci-dessus le numéro reçu lors de votre commande (ex : SO-0042)
+            pour voir son statut en temps réel.
+          </p>
         </div>
       )}
 
