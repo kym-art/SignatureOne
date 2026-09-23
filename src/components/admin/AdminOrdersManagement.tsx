@@ -434,6 +434,12 @@ export const AdminOrdersManagement: React.FC<AdminOrdersManagementProps> = ({ or
                             <span className="bg-emerald-50 text-emerald-900 border border-emerald-200 px-2 py-0.5 rounded-md text-[10px] font-semibold">
                               👤 {ord.vendeur.nom}
                             </span>
+                          ) : ord.vendeurId ? (
+                            /* vendeurId présent mais nom pas encore résolu (réponse
+                               partielle) : état transitoire, pas "Non assigné". */
+                            <span className="bg-sky-50 text-sky-900 border border-sky-200 px-2 py-0.5 rounded-md text-[10px] font-semibold">
+                              👤 Prise en charge…
+                            </span>
                           ) : (
                             <span className="bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-md text-[10px] font-bold">
                               Non assigné

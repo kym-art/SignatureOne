@@ -155,6 +155,10 @@ export const AdminHistoryView: React.FC<AdminHistoryViewProps> = ({ orders }) =>
                           <span className="bg-emerald-50 text-emerald-900 border border-emerald-200 px-2 py-0.5 rounded-md text-[10px] font-semibold">
                             👤 {ord.vendeur.nom}
                           </span>
+                        ) : ord.vendeurId ? (
+                          <span className="bg-sky-50 text-sky-900 border border-sky-200 px-2 py-0.5 rounded-md text-[10px] font-semibold">
+                            👤 Prise en charge…
+                          </span>
                         ) : (
                           <span className="text-stone-400 text-[10px] italic">Non assigné</span>
                         )}

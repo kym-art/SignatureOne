@@ -103,6 +103,24 @@ function saveOrders(orders: Order[]): void {
   notifySubscribers();
 }
 
+/**
+ * Fusion vendeur : le serveur est la vérité quand il fournit `vendeur` ou
+ * `vendeurId`. Si la réponse serveur ne contient NI l'un NI l'autre
+ * (partielle / vieux payload), on conserve le `vendeur` déjà en cache pour
+ * ne pas faire retomber la pastille à "Non assigné" à tort.
+ */
+function mergeVendorInfo(cached: Order[], fresh: Order[]): Order[] {
+  if (cached.length === 0) return fresh;
+  const byId = new Map(cached.map((o) => [o.id, o]));
+  return fresh.map((o) => {
+    const prev = byId.get(o.id);
+    if (!prev) return o;
+    const serverSpeaks = o.vendeur !== undefined || o.vendeurId !== undefined;
+    if (serverSpeaks) return o;
+    return { ...o, vendeur: prev.vendeur, vendeurId: prev.vendeurId };
+  });
+}
+
 /** Met à jour (ou ajoute) une commande dans le cache en mémoire. */
 function upsertOrder(order: Order): void {
   const orders = getAllOrders();
@@ -392,6 +410,9 @@ export async function claimOrder(
 
   try {
     const updated = await apiFetch<Order>(`/orders/${orderId}/claim`, { method: 'POST' });
+    // Le serveur retourne désormais `vendeur` (nom/tél) + `vendeurId` :
+    // on écrase l'ancien pour que la pastille reflète la réalité, même si
+    // la fusion locale conservait un vendeur périmé.
     orders[index] = { ...orders[index], ...updated };
     saveOrders(orders);
     return { success: true, order: orders[index] };
@@ -795,6 +816,11 @@ export async function confirmPayment(orderId: string): Promise<{ success: boolea
  * Hydrate le cache localStorage depuis le BACKEND (GET /api/orders) pour un
  * utilisateur authentifié (admin/vendeur) — accès complet aux colonnes
  * sensibles, contrairement à la lecture anon Supabase.
+ *
+ * Le backend retourne `vendeur` (nom/téléphone) ET `vendeurId`. On ne doit
+ * JAMAIS écraser un `vendeur` connu par `undefined` (ex. réponse partielle
+ * ou vieux cache) : la pastille retomberait à "Non assigné" à tort.
+ * Règle : le serveur gagne quand il parle, le cache garde sinon.
  */
 export async function hydrateOrdersFromBackend(): Promise<void> {
   if (typeof window === 'undefined') return;
@@ -805,7 +831,7 @@ export async function hydrateOrdersFromBackend(): Promise<void> {
   try {
     const serverOrders = await apiFetch<Order[]>('/orders');
     const normalized = normalizeOrders(serverOrders || []);
-    ORDERS_CACHE = normalized;
+    ORDERS_CACHE = mergeVendorInfo(ORDERS_CACHE, normalized);
     notifySubscribers();
   } catch (e) {
     console.warn('[orders] hydrateOrdersFromBackend:', e instanceof ApiError ? e.message : e);

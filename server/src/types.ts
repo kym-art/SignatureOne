@@ -40,6 +40,14 @@ export interface Order {
   modePaiement: ModePaiement;
   total: number;
   vendeurId?: string | null;
+  /**
+   * Enrichissement LECTURE SEULE (jointure applicative serveur) : le vendeur
+   * en charge (id + nom + téléphone). La table Order ne stocke que
+   * `vendeurId` : rempli par OrdersService.attachVendorNames, comme les
+   * produits des lignes. Sans lui, l'admin voit "Non assigné" même quand
+   * une commande est prise en charge (vendeurId présent, nom absent).
+   */
+  vendeur?: { id: string; nom: string; telephone?: string | null } | null;
   items: OrderItem[];
   recuNumero?: string | null;
   recuUrl?: string | null;

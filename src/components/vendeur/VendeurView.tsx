@@ -442,6 +442,10 @@ export const VendeurView: React.FC<VendeurViewProps> = ({ onBack }) => {
                           >
                             👤 {isClaimedByMe ? 'Pris par vous' : `Pris par ${order.vendeur.nom}`}
                           </span>
+                        ) : order.vendeurId ? (
+                          <span className="text-[10px] px-2 py-0.5 rounded font-bold bg-sky-100 text-sky-900 border border-sky-300 animate-pulse">
+                            👤 Prise en charge…
+                          </span>
                         ) : (
                           <span className="text-[10px] px-2 py-0.5 rounded font-bold bg-amber-100 text-amber-900 border border-amber-300 animate-pulse">
                             ⚠️ Non assigné

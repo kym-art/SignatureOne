@@ -82,6 +82,11 @@ export class OrdersService {
           o.items = byOrder.get(o.id) ?? [];
         }
       }
+      // Enrichissement vendeur (nom/téléphone) : la table Order ne stocke que
+      // `vendeurId`. Sans jointure applicative, le front reçoit vendeurId
+      // mais `vendeur` undefined → pastille "Non assigné" alors que la
+      // commande est prise en charge.
+      await this.attachVendorNames(orders);
     }
     return orders;
   }
@@ -100,7 +105,9 @@ export class OrdersService {
       .eq('orderId', id);
     if (itemsErr) throw new BadRequestException(itemsErr.message);
     // Enrichissement produit (nom/format) pour les reçus / l'UI.
-    return { ...(data as Order), items: await this.attachProductNames((items || []) as OrderItem[]) };
+    const order = { ...(data as Order), items: await this.attachProductNames((items || []) as OrderItem[]) };
+    await this.attachVendorNames([order]);
+    return order;
   }
 
   /**
@@ -122,10 +129,42 @@ export class OrdersService {
       .select('*')
       .eq('orderId', order.id);
     if (itemsErr) throw new BadRequestException(itemsErr.message);
-    return {
+    const full = {
       ...order,
       items: await this.attachProductNames((items || []) as OrderItem[]),
     };
+    await this.attachVendorNames([full]);
+    return full;
+  }
+
+  /**
+   * Jointure applicative vendeur (même pattern que attachProductNames) :
+   * lit les profils `User` (id, nom, telephone) pour les vendeurId présents
+   * et remplit `order.vendeur`. En une requête (O(n)).
+   */
+  private async attachVendorNames(orders: Order[]): Promise<void> {
+    const ids = [...new Set(orders.map((o) => o.vendeurId).filter((id): id is string => Boolean(id)))];
+    if (ids.length === 0) {
+      for (const o of orders) o.vendeur = null;
+      return;
+    }
+    try {
+      const { data, error } = await this.supabase.admin
+        .from('User')
+        .select('id, nom, telephone')
+        .in('id', ids);
+      if (error || !data) {
+        this.logger.warn(`attachVendorNames: lecture User impossible (${error?.message}) — pastilles vendeur vides.`);
+        return;
+      }
+      const byId = new Map((data as { id: string; nom: string; telephone?: string | null }[]).map((u) => [u.id, u]));
+      for (const o of orders) {
+        const u = o.vendeurId ? byId.get(o.vendeurId) : undefined;
+        o.vendeur = u ? { id: u.id, nom: u.nom, telephone: u.telephone ?? null } : null;
+      }
+    } catch (e) {
+      this.logger.warn(`attachVendorNames erreur: ${(e as Error)?.message} — pastilles vendeur vides.`);
+    }
   }
 
   /**

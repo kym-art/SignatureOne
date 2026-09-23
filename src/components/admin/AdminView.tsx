@@ -426,7 +426,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onBack }) => {
                           </span>
                         </td>
                         <td className="p-3 text-[#53685C]">
-                          {o.vendeur?.nom ? `👤 ${o.vendeur.nom}` : 'Non assigné'}
+                          {o.vendeur?.nom ? `👤 ${o.vendeur.nom}` : o.vendeurId ? '👤 Prise en charge…' : 'Non assigné'}
                         </td>
                         <td className="p-3 text-[#53685C]">
                           {new Date(o.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
