@@ -5,8 +5,17 @@ export interface AppConfig {
   supabaseAnonKey: string;
   supabaseServiceRoleKey: string;
   jwtSecret: string;
-  useMockData: boolean;
   adminTelephone: string;
+  /** Passerelle CinetPay (paiement mobile money Flooz / TMoney). */
+  cinetpayApiKey: string;
+  cinetpaySiteId: string;
+  /** Secret HMAC : sert à authentifier les webhooks entrants. */
+  cinetpaySecretKey: string;
+  /**
+   * Sandbox (défaut true). Dès que `false` (production), la signature HMAC du
+   * webhook devient OBLIGATOIRE — fail-closed, un webhook non signé est refusé.
+   */
+  cinetpaySandbox: boolean;
 }
 
 const isPlaceholder = (v: string): boolean =>
@@ -35,8 +44,12 @@ export function loadConfig(): AppConfig {
       process.env.kym_SUPABASE_SECRET_KEY ||
       '',
     jwtSecret: process.env.JWT_SECRET || '',
-    useMockData: process.env.USE_MOCK_DATA === 'true',
     adminTelephone: process.env.ADMIN_TELEPHONE || '+22890000000',
+    cinetpayApiKey: process.env.CINETPAY_API_KEY || '',
+    cinetpaySiteId: process.env.CINETPAY_SITE_ID || '',
+    cinetpaySecretKey: process.env.CINETPAY_SECRET_KEY || '',
+    // Sandbox par défaut : la production l'expose explicitement à 'false'.
+    cinetpaySandbox: process.env.CINETPAY_SANDBOX !== 'false',
   };
 }
 

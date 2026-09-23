@@ -66,7 +66,7 @@ export class ProductsService {
   async remove(id: string): Promise<{ softDeleted: boolean }> {
     // ⚠️ Si le produit est référencé par des OrderItem, on ne le SUPPRIME pas
     // (les commandes passées doivent rester cohérentes) : soft-delete
-    // (actif=false + disponible=false) pour le retirer du catalogue.
+    // (actif=false + disponible=false pour retirer du catalogue).
     const { data: refs, error: refErr } = await this.supabase.admin
       .from('OrderItem')
       .select('id')

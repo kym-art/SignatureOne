@@ -18,6 +18,13 @@ export interface OrderItem {
   productId: string;
   quantite: number;
   prixUnitaire: number;
+  /**
+   * Enrichissement LECTURE SEULE (jointure applicative) : nom/format du produit.
+   * La table OrderItem ne stocke que `productId` et le schéma Prisma n'expose
+   * aucune relation `product` → PostgREST ne peut pas joindre Product. Ce champ
+   * est donc rempli par OrdersService.attachProductNames pour les reçus/UI.
+   */
+  product?: { id: string; nom: string; format?: string | null } | null;
 }
 
 export interface Order {
@@ -51,7 +58,6 @@ export interface Product {
   prix: number;
   photoUrl?: string | null;
   disponible: boolean;
-  quantiteRestante?: number | null;
   actif: boolean;
   misEnAvant: boolean;
   createdAt: string;
@@ -67,9 +73,53 @@ export interface Review {
   createdAt: string;
 }
 
+/**
+ * TableQR — données de table exposées au client.
+ * Source de vérité : table Supabase `TableQR` (id, numero). Le champ `numero`
+ * est unique (migration `TableQR_numero_key`). Aucun stockage côté client.
+ */
+export interface TableQR {
+  id: string;
+  numero: number;
+}
+
+
 export interface Expense {
   id: string;
   libelle: string;
   montant: number;
   createdAt: string;
+}
+
+/**
+ * Payment — trace serveur d'une transaction passerelle (CinetPay).
+ * `orderId` est UNIQUE en base : une commande n'a qu'un enregistrement de
+ * paiement, ce qui sert aussi de verrou d'idempotence du webhook.
+ */
+export interface Payment {
+  id: string;
+  orderId: string;
+  provider: string;
+  reference?: string | null;
+  statut: StatutPaiement;
+  confirmePar?: string | null;
+  createdAt: string;
+}
+
+/**
+ * SmsLog — journal serveur de la réconciliation mobile-money.
+ * La table SmsLog a RLS (aucun accès anon). Source de vérité côté admin = Supabase.
+ */
+export interface SmsLog {
+  id?: string;
+  sender: string;
+  message: string;
+  receivedAt: string;
+  parsedAmount?: number | null;
+  parsedSender?: string | null;
+  parsedBalance?: number | null;
+  previousBalance?: number | null;
+  matchedOrderId?: string | null;
+  status: SmsStatus;
+  createdAt?: string;
 }

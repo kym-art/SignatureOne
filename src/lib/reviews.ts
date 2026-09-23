@@ -4,53 +4,20 @@
  * admin moderation (approve, hide, delete, feature), and public display.
  */
 
-import { isMockDataEnabled } from './config';
 import { Review } from '../types';
 import { apiFetch, ApiError } from './api';
 
-const STORAGE_REVIEWS_KEY = 'signature_one_reviews_v1';
+// Cache mémoire (source de vérité = backend). Aucun localStorage, aucune donnée mockée.
 
-const INITIAL_REVIEWS: Review[] = [
-  {
-    id: 'rev_01',
-    orderId: 'ord_sample_0001',
-    note: 5,
-    commentaire: 'Le meilleur dèguè de Lomé ! Texture onctueuse et goût vanille coco sublime.',
-    prenom: 'Koffi',
-    valide: true,
-    misEnAvant: true,
-    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'rev_02',
-    orderId: 'ord_sample_0002',
-    note: 5,
-    commentaire: 'Service sur place impeccable, servi frais en moins de 5 minutes. Je recommande vivement !',
-    prenom: 'Abla',
-    valide: true,
-    misEnAvant: true,
-    createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'rev_03',
-    orderId: 'ord_sample_0003',
-    note: 4,
-    commentaire: 'Bissap menthe très rafraîchissant. Retrait en boutique super rapide.',
-    prenom: 'Foly',
-    valide: false, // En attente de validation
-    misEnAvant: false,
-    createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-  }
-];
+// Cache mémoire (source de vérité = backend). Aucun localStorage.
+let reviewsCache: Review[] | null = null;
 
 type ReviewChangeListener = (reviews: Review[]) => void;
-const listeners: Set<ReviewChangeListener> = new Set();
+const listeners = new Set<ReviewChangeListener>();
 
 export function subscribeReviews(listener: ReviewChangeListener): () => void {
   listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
+  return () => listeners.delete(listener);
 }
 
 function notifySubscribers(): void {
@@ -59,29 +26,17 @@ function notifySubscribers(): void {
 }
 
 export function getAllReviews(): Review[] {
-  if (typeof window === 'undefined') return isMockDataEnabled ? INITIAL_REVIEWS : [];
-  try {
-    const raw = localStorage.getItem(STORAGE_REVIEWS_KEY);
-    if (!raw) {
-      if (isMockDataEnabled) {
-        localStorage.setItem(STORAGE_REVIEWS_KEY, JSON.stringify(INITIAL_REVIEWS));
-      }
-      return isMockDataEnabled ? INITIAL_REVIEWS : [];
-    }
-    return JSON.parse(raw);
-  } catch {
-    return isMockDataEnabled ? INITIAL_REVIEWS : [];
-  }
+  // Cache mémoire rafraîchi par hydrateReviewsFromBackend (DB = source de vérité).
+  if (reviewsCache) return reviewsCache;
+  return [];
 }
 
 function saveReviews(reviews: Review[]): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(STORAGE_REVIEWS_KEY, JSON.stringify(reviews));
-    notifySubscribers();
-  } catch (err) {
-    console.error('Failed to save reviews:', err);
-  }
+  // Source de vérité = backend (GET /reviews). Le cache est un simple état
+  // mémoire volatil — AUCUN localStorage. Les mutations appellent déjà le backend
+  // ; ce setCache sert à rafraîchir l'UI immédiatement (optimiste).
+  reviewsCache = reviews;
+  notifySubscribers();
 }
 
 export function getApprovedReviews(): Review[] {
@@ -150,24 +105,7 @@ export async function createReview(
     return { success: false, error: 'Un avis a déjà été soumis pour cette commande.' };
   }
 
-  if (isMockDataEnabled) {
-    const newReview: Review = {
-      id: `rev_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      orderId,
-      note,
-      commentaire: commentaire?.trim() || null,
-      prenom: prenom?.trim() || null,
-      valide: false,
-      misEnAvant: false,
-      createdAt: new Date().toISOString(),
-    };
-    const all = getAllReviews();
-    all.unshift(newReview);
-    saveReviews(all);
-    return { success: true, review: newReview };
-  }
-
-  // Sinon : soumission via le backend (endpoint public, modération a posteriori).
+  // Soumission via le backend (endpoint public, modération a posteriori).
   try {
     const created = await apiFetch<Review>('/reviews', {
       method: 'POST',
@@ -188,12 +126,6 @@ export async function approveReview(id: string): Promise<{ success: boolean; err
   const index = all.findIndex((r) => r.id === id);
   if (index === -1) return { success: false, error: 'Avis introuvable.' };
 
-  if (isMockDataEnabled) {
-    all[index].valide = true;
-    saveReviews(all);
-    return { success: true };
-  }
-
   try {
     await apiFetch<Review>(`/reviews/${id}/validate`, { method: 'PATCH' });
     all[index].valide = true;
@@ -210,12 +142,6 @@ export async function hideReview(id: string): Promise<{ success: boolean; error?
   const index = all.findIndex((r) => r.id === id);
   if (index === -1) return { success: false, error: 'Avis introuvable.' };
 
-  if (isMockDataEnabled) {
-    all[index].valide = false;
-    saveReviews(all);
-    return { success: true };
-  }
-
   try {
     await apiFetch<Review>(`/reviews/${id}/feature`, { method: 'PATCH', body: { valide: false } });
     all[index].valide = false;
@@ -227,37 +153,16 @@ export async function hideReview(id: string): Promise<{ success: boolean; error?
   }
 }
 
-export async function toggleFeatureReview(id: string): Promise<{ success: boolean; error?: string }> {
-  // ⚠️ La mise en avant des avis (Review.misEnAvant) a été retirée du schéma
-  // Prisma et de la base : la fonctionnalité n'est plus disponible en mode
-  // backend. Mode mock inchangé (périmètre démo uniquement).
-  if (!isMockDataEnabled) {
-    return { success: false, error: 'La mise en avant des avis n\'est plus disponible.' };
-  }
-
-  const all = getAllReviews();
-  const index = all.findIndex((r) => r.id === id);
-  if (index === -1) return { success: false, error: 'Avis introuvable.' };
-
-  if (!all[index].valide) {
-    return { success: false, error: "L'avis doit d'abord être validé avant d'être mis en avant." };
-  }
-
-  const target = !all[index].misEnAvant;
-  all[index].misEnAvant = target;
-  saveReviews(all);
-  return { success: true };
+export async function toggleFeatureReview(_id: string): Promise<{ success: boolean; error?: string }> {
+  // La mise en avant des avis (Review.misEnAvant) a été retirée du schéma
+  // Prisma et de la base : la fonctionnalité n'est plus disponible.
+  return { success: false, error: 'La mise en avant des avis n\'est plus disponible.' };
 }
 
 export async function deleteReview(id: string): Promise<{ success: boolean; error?: string }> {
   const all = getAllReviews();
   const filtered = all.filter((r) => r.id !== id);
   if (filtered.length === all.length) return { success: false, error: 'Avis introuvable.' };
-
-  if (isMockDataEnabled) {
-    saveReviews(filtered);
-    return { success: true };
-  }
 
   try {
     await apiFetch<void>(`/reviews/${id}`, { method: 'DELETE' });

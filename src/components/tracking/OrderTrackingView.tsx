@@ -26,6 +26,7 @@ import {
   getAllOrders,
   subscribeOrders,
   isMyOrder,
+  fetchOrderByNumero,
   getStatusDetails,
   getPaymentStatusDetails,
   getReceptionModeDetails
@@ -75,13 +76,15 @@ export const OrderTrackingView: React.FC<OrderTrackingViewProps> = ({
   // Load initial order or first available order
   useEffect(() => {
     if (initialNumero) {
-      const found = getOrderByNumero(initialNumero);
-      // Un client ne peut suivre que ses propres commandes.
-      if (found && (isStaff || isMyOrder(found.numero))) {
-        setCurrentOrder(found);
-      } else {
-        setNotFoundQuery(initialNumero);
-      }
+      // Cache d'abord, sinon récupération serveur publique par numéro (DB).
+      void (async () => {
+        const found = getOrderByNumero(initialNumero) ?? (await fetchOrderByNumero(initialNumero));
+        if (found && (isStaff || isMyOrder(found.numero))) {
+          setCurrentOrder(found);
+        } else {
+          setNotFoundQuery(initialNumero);
+        }
+      })();
     } else {
       // Un client ne voit que ses propres commandes.
       const all = getAllOrders();
@@ -125,12 +128,13 @@ export const OrderTrackingView: React.FC<OrderTrackingViewProps> = ({
     return unsub;
   }, [isStaff]);
 
-  const handleSearch = (e?: React.FormEvent) => {
+  const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!searchNumero.trim()) return;
 
     setNotFoundQuery(null);
-    const found = getOrderByNumero(searchNumero.trim());
+    // Cache d'abord, sinon récupération serveur publique (DB) par numéro.
+    const found = getOrderByNumero(searchNumero.trim()) ?? (await fetchOrderByNumero(searchNumero.trim()));
     if (found && (isStaff || isMyOrder(found.numero))) {
       setCurrentOrder(found);
     } else {
@@ -144,8 +148,10 @@ export const OrderTrackingView: React.FC<OrderTrackingViewProps> = ({
     setIsRefreshing(true);
     setTimeout(() => {
       if (searchNumero) {
-        const found = getOrderByNumero(searchNumero);
-        if (found && (isStaff || isMyOrder(found.numero))) setCurrentOrder(found);
+        void (async () => {
+          const found = getOrderByNumero(searchNumero) ?? (await fetchOrderByNumero(searchNumero));
+          if (found && (isStaff || isMyOrder(found.numero))) setCurrentOrder(found);
+        })();
       }
       setIsRefreshing(false);
       setLastRefreshedAt(new Date().toLocaleTimeString('fr-FR'));

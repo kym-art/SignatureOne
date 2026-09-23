@@ -42,6 +42,13 @@ export class OrdersController {
     return this.orders.findOne(id);
   }
 
+    /** Public : suivi anonyme d'une commande par son numéro (SO-xxxx). */
+  @Public()
+  @Get('track/:numero')
+  trackByNumero(@Param('numero') numero: string) {
+    return this.orders.findByNumero(numero);
+  }
+
   /** Admin/Vendeur : changement de statut de la commande. */
   @Roles('ADMIN', 'VENDEUR')
   @Patch(':id/status')

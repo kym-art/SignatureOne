@@ -27,7 +27,6 @@ export interface Product {
   prix: number; // En FCFA
   photoUrl?: string | null;
   disponible: boolean;
-  quantiteRestante?: number | null;
   actif: boolean;
   misEnAvant: boolean;
   createdAt?: Date | string;
@@ -40,7 +39,6 @@ export interface CreateProductInput {
   prix: number;
   photoUrl?: string | null;
   disponible?: boolean;
-  quantiteRestante?: number | null;
   actif?: boolean;
   misEnAvant?: boolean;
 }
@@ -52,7 +50,6 @@ export interface UpdateProductInput {
   prix?: number;
   photoUrl?: string | null;
   disponible?: boolean;
-  quantiteRestante?: number | null;
   actif?: boolean;
   misEnAvant?: boolean;
 }

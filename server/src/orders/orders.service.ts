@@ -69,8 +69,11 @@ export class OrdersService {
         .select('*')
         .in('orderId', orders.map((o) => o.id));
       if (!itemsErr && items) {
+        // Enrichissement produit (nom/format) AVANT regroupement : indispensable
+        // aux reçus et à l'UI, la table OrderItem ne stockant que productId.
+        const enriched = await this.attachProductNames((items || []) as OrderItem[]);
         const byOrder = new Map<string, OrderItem[]>();
-        for (const it of (items || []) as OrderItem[]) {
+        for (const it of enriched) {
           const list = byOrder.get(it.orderId) ?? [];
           list.push(it);
           byOrder.set(it.orderId, list);
@@ -96,10 +99,63 @@ export class OrdersService {
       .select('*')
       .eq('orderId', id);
     if (itemsErr) throw new BadRequestException(itemsErr.message);
-    return { ...(data as Order), items: (items || []) as Order['items'] };
+    // Enrichissement produit (nom/format) pour les reçus / l'UI.
+    return { ...(data as Order), items: await this.attachProductNames((items || []) as OrderItem[]) };
   }
 
-    private paymentStatusForMode(mode: ModePaiement): StatutPaiement {
+  /**
+   * Recherche une commande publique par son numéro lisible (ex: SO-0001).
+   * Utilisé par le suivi client (localStorage désactivé) : un anonyme peut
+   * récupérer sa commande depuis la DB avec son numéro de confirmation.
+   */
+  async findByNumero(numero: string): Promise<Order> {
+    const { data, error } = await this.supabase.admin
+      .from('Order')
+      .select('*')
+      .eq('numero', numero)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException('Commande introuvable');
+    const order = data as Order;
+    const { data: items, error: itemsErr } = await this.supabase.admin
+      .from('OrderItem')
+      .select('*')
+      .eq('orderId', order.id);
+    if (itemsErr) throw new BadRequestException(itemsErr.message);
+    return {
+      ...order,
+      items: await this.attachProductNames((items || []) as OrderItem[]),
+    };
+  }
+
+  /**
+   * Enrichit les lignes de commande avec le nom/format du produit.
+   *
+   * La table OrderItem ne stocke que `productId`, et le schéma Prisma n'expose
+   * aucune relation `product` : PostgREST ne peut donc PAS joindre Product
+   * (`select('*, Product(*)')` échouerait). On effectue une jointure applicative
+   * en une requête (O(n)) : sans cela, les reçus affichaient un libellé
+   * générique (« Article Artisanal ») au lieu du nom réel des articles achetés.
+   */
+  private async attachProductNames(items: OrderItem[]): Promise<OrderItem[]> {
+    if (items.length === 0) return items;
+    const ids = [...new Set(items.map((it) => it.productId).filter(Boolean))];
+    if (ids.length === 0) return items;
+    const { data, error } = await this.supabase.admin
+      .from('Product')
+      .select('id, nom, format')
+      .in('id', ids);
+    if (error || !data) {
+      if (error) this.logger.warn(`attachProductNames: ${error.message}`);
+      return items; // dégradation silencieuse : le reçu retombe sur le fallback
+    }
+    const byId = new Map(
+      (data as { id: string; nom: string; format?: string | null }[]).map((p) => [p.id, p])
+    );
+    return items.map((it) => ({ ...it, product: byId.get(it.productId) ?? null }));
+  }
+
+  private paymentStatusForMode(mode: ModePaiement): StatutPaiement {
     if (mode === 'LIVRAISON') return 'PAIEMENT_LIVRAISON';
     if (mode === 'SUR_PLACE') return 'PAIEMENT_SUR_PLACE';
     return 'EN_ATTENTE';
@@ -146,15 +202,6 @@ export class OrdersService {
       throw new BadRequestException(`Impossible d'enregistrer les articles: ${itemsErr.message}`);
     }
 
-    // Décrémente le stock des produits vendus (une seule fois par produit).
-    const qtyByProduct = new Map<string, number>();
-    for (const r of rows) {
-      qtyByProduct.set(r.productId, (qtyByProduct.get(r.productId) ?? 0) + r.quantite);
-    }
-    for (const [productId, qte] of qtyByProduct) {
-      await this.decrementStock(productId, qte);
-    }
-
     const created = await this.findOne(orderId);
     this.logger.log(`✅ Commande créée ${numero} (${total} FCFA)`);
     return created;
@@ -197,12 +244,16 @@ export class OrdersService {
     // Le statut de commande n'est avancé que s'il est encore NOUVELLE
     // (évite de faire reculer une commande déjà plus avancée).
     const nextStatut = current.statut === 'NOUVELLE' ? 'ACCEPTEE' : current.statut;
-    const { data, error } = await this.supabase.admin
+        const { data, error } = await this.supabase.admin
       .from('Order')
       .update({
         statutPaiement: 'PAYE',
         statut: nextStatut,
         datePaiement: new Date().toISOString(),
+        // ✅ Numéro + URL de reçu mintés serveur (source de vérité), comme
+        // createDirectSale. Idempotent : ne recrée pas de reçu existant.
+        recuNumero: current.recuNumero || `REC-${current.numero.replace('SO-', '')}`,
+        recuUrl: current.recuUrl || `/recu/${current.numero}`,
       })
       .eq('id', orderId)
       // ⚠️ Les commandes LIVRAISON/SUR_PLACE démarrent à PAIEMENT_LIVRAISON /
@@ -335,15 +386,6 @@ export class OrdersService {
       throw new BadRequestException(`Impossible d'enregistrer les articles: ${itemsErr.message}`);
     }
 
-    // Décrémente le stock des produits vendus (une seule fois par produit).
-    const qtyByProduct = new Map<string, number>();
-    for (const r of rows) {
-      qtyByProduct.set(r.productId, (qtyByProduct.get(r.productId) ?? 0) + r.quantite);
-    }
-    for (const [productId, qte] of qtyByProduct) {
-      await this.decrementStock(productId, qte);
-    }
-
     const created = await this.findOne(orderId);
     this.logger.log(`✅ Vente directe ${numero} (${total} FCFA) par ${user.sub}`);
     return created;
@@ -352,7 +394,8 @@ export class OrdersService {
   /**
    * Recalcule le prix de chaque ligne depuis la table Product (source de
    * vérité). Vérifie l'existence, l'activité et la disponibilité du produit.
-   * Le prix unitaire client est ignoré.
+   * Le prix unitaire client est ignoré. Ventes illimitées : aucun compteur
+   * de stock (quantiteRestante supprimé).
    */
   private async resolvePricedItems(
     items: { productId: string; quantite: number }[]
@@ -360,14 +403,14 @@ export class OrdersService {
     const ids = [...new Set(items.map((it) => it.productId))];
     const { data, error } = await this.supabase.admin
       .from('Product')
-      .select('id, prix, disponible, actif, quantiteRestante')
+      .select('id, prix, disponible, actif')
       .in('id', ids);
     if (error) {
       throw new BadRequestException(`Erreur lecture produits: ${error.message}`);
     }
     const byId = new Map<
       string,
-      { prix: number; disponible: boolean; actif: boolean; quantiteRestante: number | null }
+      { prix: number; disponible: boolean; actif: boolean }
     >(
       (
         (data ?? []) as {
@@ -375,7 +418,6 @@ export class OrdersService {
           prix: number;
           disponible: boolean;
           actif: boolean;
-          quantiteRestante: number | null;
         }[]
       ).map((p) => [p.id, p])
     );
@@ -387,10 +429,6 @@ export class OrdersService {
       if (!prod) throw new BadRequestException(`Produit introuvable: ${it.productId}`);
       if (!prod.actif || !prod.disponible) {
         throw new BadRequestException(`Produit indisponible: ${it.productId}`);
-      }
-      // Stock suivi et épuisé → refuser (évite une survente silencieuse).
-      if (prod.quantiteRestante !== null && prod.quantiteRestante <= 0) {
-        throw new BadRequestException(`Produit épuisé: ${it.productId}`);
       }
       if (typeof prod.prix !== 'number' || prod.prix <= 0) {
         throw new BadRequestException(`Prix invalide pour le produit ${it.productId}`);
@@ -404,34 +442,6 @@ export class OrdersService {
       });
     }
     return { rows, total };
-  }
-
-  /**
-   * Décrémente le stock (quantiteRestante) après une vente confirmée.
-   * - stock non suivi (null) → rien à faire (vente illimitée).
-   * - décrément contraint par `.gte('quantiteRestante', qte)` : si le stock a
-   *   bougé entre-temps (0 ligne), on log un avertissement sans casser l'ordre.
-   * À 0 → le produit passe indisponible dans le catalogue.
-   */
-  private async decrementStock(productId: string, quantite: number): Promise<void> {
-    const { data: prod, error: readErr } = await this.supabase.admin
-      .from('Product')
-      .select('quantiteRestante')
-      .eq('id', productId)
-      .maybeSingle();
-    if (readErr || !prod) {
-      if (readErr) this.logger.warn(`decrementStock lecture ${productId}: ${readErr.message}`);
-      return;
-    }
-    const current = (prod as { quantiteRestante: number | null }).quantiteRestante;
-    if (current === null || current === undefined) return; // stock non suivi
-    const next = Math.max(0, current - quantite);
-    const { error: upErr } = await this.supabase.admin
-      .from('Product')
-      .update({ quantiteRestante: next, disponible: next > 0 })
-      .eq('id', productId)
-      .gte('quantiteRestante', quantite);
-    if (upErr) this.logger.warn(`decrementStock ${productId}: ${upErr.message}`);
   }
 
   /**

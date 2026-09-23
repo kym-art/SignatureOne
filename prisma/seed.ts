@@ -36,7 +36,6 @@ export const initialSeedData = {
       format: "Bouteille 500ml",
       prix: 1500, // En FCFA
       disponible: true,
-      quantiteRestante: 25,
       actif: true,
     },
     {
@@ -46,7 +45,6 @@ export const initialSeedData = {
       format: "Pot 400g",
       prix: 1800,
       disponible: true,
-      quantiteRestante: 18,
       actif: true,
     },
     {
@@ -56,7 +54,6 @@ export const initialSeedData = {
       format: "Bouteille 1L",
       prix: 2500,
       disponible: true,
-      quantiteRestante: 15,
       actif: true,
     },
     {
@@ -66,7 +63,6 @@ export const initialSeedData = {
       format: "Bouteille 500ml",
       prix: 1000,
       disponible: true,
-      quantiteRestante: 30,
       actif: true,
     }
   ]

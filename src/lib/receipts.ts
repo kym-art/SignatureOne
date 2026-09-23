@@ -9,9 +9,7 @@ import { Order, StatutPaiement } from '../types';
 import { getOrderById, getAllOrders, getPaymentStatusDetails, getReceptionModeDetails } from './orders';
 import { generateQRCode } from './qr';
 import { STORE_CONTACT } from './config';
-
-const STORAGE_RECEIPT_COUNTER_KEY = 'signature_one_receipt_counter_v9';
-const STORAGE_RECEIPTS_KEY = 'signature_one_receipts_v9';
+import { getProductById } from './products';
 
 export interface ReceiptRecord {
   id: string;
@@ -29,114 +27,66 @@ export interface ReceiptRecord {
 }
 
 /**
- * Generate sequential receipt number (e.g. REC-0001, REC-0002)
+ * Numéro de reçu dérivé du numéro de commande (ex: REC-0042).
+ * Source de vérité : le backend (confirmPayment / createDirectSale) — le client
+ * ne génère PLUS de compteur en localStorage.
  */
 export function getNextReceiptNumber(orderNumero?: string): string {
   if (orderNumero && orderNumero.startsWith('SO-')) {
-    const suffix = orderNumero.replace('SO-', '');
-    return `REC-${suffix}`;
+    return `REC-${orderNumero.replace('SO-', '')}`;
   }
-
-  if (typeof window === 'undefined') {
-    return `REC-${Date.now().toString().slice(-4)}`;
-  }
-
-  try {
-    const raw = localStorage.getItem(STORAGE_RECEIPT_COUNTER_KEY);
-    let counter = raw ? parseInt(raw, 10) : 0;
-    if (isNaN(counter) || counter < 0) {
-      counter = 0;
-    }
-    counter += 1;
-    localStorage.setItem(STORAGE_RECEIPT_COUNTER_KEY, counter.toString());
-    const padded = String(counter).padStart(4, '0');
-    return `REC-${padded}`;
-  } catch {
-    const random = Math.floor(1000 + Math.random() * 9000);
-    return `REC-${random}`;
-  }
+  // Fallback éphémère (hors ligne / numéro non-SO) : jamais persisté.
+  return `REC-${Date.now().toString().slice(-4)}`;
 }
 
 /**
- * Save receipt index record in local storage
+ * Historique des reçus : dérivé du cache mémoire des commandes (source = DB),
+ * AUCUN localStorage. Un reçu existe quand la commande possède un `recuNumero`.
  */
-function saveReceiptRecord(record: ReceiptRecord): void {
-  if (typeof window === 'undefined') return;
-  try {
-    const raw = localStorage.getItem(STORAGE_RECEIPTS_KEY);
-    const list: ReceiptRecord[] = raw ? JSON.parse(raw) : [];
-    const existingIndex = list.findIndex((r) => r.orderId === record.orderId);
-    if (existingIndex >= 0) {
-      list[existingIndex] = record;
-    } else {
-      list.unshift(record);
-    }
-    localStorage.setItem(STORAGE_RECEIPTS_KEY, JSON.stringify(list));
-  } catch (err) {
-    console.error('Error saving receipt record:', err);
-  }
+function iso(d: string | Date): string {
+  return typeof d === 'string' ? d : d.toISOString();
 }
 
-/**
- * Get all stored receipt records (Module 9 admin/vendor history)
- */
 export function getAllReceipts(): ReceiptRecord[] {
   if (typeof window === 'undefined') return [];
   try {
-    const raw = localStorage.getItem(STORAGE_RECEIPTS_KEY);
-    return raw ? JSON.parse(raw) : [];
+    return getAllOrders()
+      .filter((o) => !!o.recuNumero)
+      .map((order): ReceiptRecord => ({
+        id: `rec_${order.id}`,
+        recuNumero: order.recuNumero as string,
+        orderId: order.id,
+        orderNumero: order.numero,
+        clientNom: order.clientNom,
+        clientTel: order.clientTel,
+        total: order.total,
+        modePaiement: order.modePaiement,
+        typeCommande: order.typeCommande,
+        datePaiement: iso(order.datePaiement || order.createdAt),
+        recuUrl: order.recuUrl || `/recu/${order.numero}`,
+        itemsCount: order.items.reduce((acc, i) => acc + i.quantite, 0),
+      }));
   } catch {
     return [];
   }
 }
+
 
 /**
  * Main function: Automatically generate a receipt for an Order upon payment (statutPaiement = PAYE)
  */
 export function generateReceiptForOrder(order: Order): { success: boolean; recuNumero: string; recuUrl: string } {
   const recuNumero = order.recuNumero || getNextReceiptNumber(order.numero);
-  const datePaiement = order.datePaiement || new Date().toISOString();
   const recuUrl = `/recu/${order.numero}`;
 
-  // Update order object
+  // Mise à jour en cache mémoire (source de vérité = DB). Aucun localStorage :
+  // la persistance durable de recuNumero/recuUrl/datePaiement est assurée par le
+  // backend (confirmPayment / createDirectSale) ; le cache local est rafraîchi
+  // par le polling GET /orders (staff) ou GET /orders/track (client). Toute
+  // écriture Supabase directe depuis le navigateur est supprimée (bloquée par
+  // RLS).
   order.recuNumero = recuNumero;
   order.recuUrl = recuUrl;
-  order.datePaiement = datePaiement;
-
-  // Persist updated order in localStorage
-  const allOrders = getAllOrders();
-  const index = allOrders.findIndex((o) => o.id === order.id);
-  if (index !== -1) {
-    allOrders[index].recuNumero = recuNumero;
-    allOrders[index].recuUrl = recuUrl;
-    allOrders[index].datePaiement = datePaiement;
-    try {
-      localStorage.setItem('signature_one_orders_v4', JSON.stringify(allOrders));
-    } catch (e) {
-      console.warn('Could not save updated order with receipt:', e);
-    }
-  }
-
-  // Create receipt index record
-  const record: ReceiptRecord = {
-    id: `rec_${order.id}`,
-    recuNumero,
-    orderId: order.id,
-    orderNumero: order.numero,
-    clientNom: order.clientNom,
-    clientTel: order.clientTel,
-    total: order.total,
-    modePaiement: order.modePaiement,
-    typeCommande: order.typeCommande,
-    datePaiement,
-    recuUrl,
-    itemsCount: order.items.reduce((acc, i) => acc + i.quantite, 0),
-  };
-  saveReceiptRecord(record);
-
-  // NOTE : la persistance durable de `recuUrl` passe désormais par le backend
-  // (service_role) — toute écriture Supabase directe depuis le navigateur est
-  // supprimée (bloquée par RLS, orphanée depuis le basculement API).
 
   return { success: true, recuNumero, recuUrl };
 }
@@ -181,26 +131,34 @@ export async function buildReceiptA4Html(order: Order): Promise<string> {
   }
 
   const itemsRows = order.items
-    .map(
-      (item, idx) => `
+    .map((item, idx) => {
+      // Nom réel du produit : la jointure serveur (attachProductNames) le fournit
+      // dans `item.product` ; sinon on retombe sur le catalogue en mémoire, puis
+      // sur un libellé neutre (jamais « Article Artisanal », qui masquait le nom).
+      const product = item.product || getProductById(item.productId);
+      const nom = product?.nom || `Article #${String(item.productId || '').slice(-4)}`;
+      const format = product?.format || 'Format standard';
+      const quantite = item.quantite ?? 0;
+      const prixUnitaire = item.prixUnitaire ?? 0;
+      return `
       <tr style="border-bottom: 1px solid #EFE9DF;">
         <td style="padding: 10px 8px; text-align: center; color: #53685C; font-size: 12px;">${idx + 1}</td>
         <td style="padding: 10px 8px;">
-          <div style="font-weight: 700; color: #1F3D2E; font-size: 13px;">${item.product?.nom || 'Article Artisanal'}</div>
-          <div style="font-size: 11px; color: #7A8B7F;">${item.product?.format || 'Format standard'}</div>
+          <div style="font-weight: 700; color: #1F3D2E; font-size: 13px;">${nom}</div>
+          <div style="font-size: 11px; color: #7A8B7F;">${format}</div>
         </td>
         <td style="padding: 10px 8px; text-align: center; font-weight: 700; color: #1F3D2E; font-size: 13px;">
-          ${item.quantite}
+          ${quantite}
         </td>
         <td style="padding: 10px 8px; text-align: right; color: #53685C; font-size: 13px; font-family: monospace;">
-          ${item.prixUnitaire.toLocaleString('fr-FR')} F
+          ${prixUnitaire.toLocaleString('fr-FR')} F
         </td>
         <td style="padding: 10px 8px; text-align: right; font-weight: 700; color: #1F3D2E; font-size: 13px; font-family: monospace;">
-          ${(item.quantite * item.prixUnitaire).toLocaleString('fr-FR')} FCFA
+          ${(quantite * prixUnitaire).toLocaleString('fr-FR')} FCFA
         </td>
       </tr>
-    `
-    )
+    `;
+    })
     .join('');
 
   return `

@@ -89,11 +89,11 @@ export const AdminQRCodesManagement: React.FC = () => {
     };
   }, [tables]);
 
-  const handleAddTable = (e: React.FormEvent) => {
+    const handleAddTable = async (e: React.FormEvent) => {
     e.preventDefault();
     setFeedbackMessage(null);
 
-    const res = createTable(Number(newTableNumber));
+    const res = await createTable(Number(newTableNumber));
     if (res.success) {
       setFeedbackMessage(`Table #${newTableNumber} créée avec succès.`);
       setNewTableNumber((prev) => prev + 1);
@@ -102,11 +102,13 @@ export const AdminQRCodesManagement: React.FC = () => {
     }
   };
 
-  const handleDeleteTable = (id: string, num: number) => {
+  const handleDeleteTable = async (id: string, num: number) => {
     if (window.confirm(`Êtes-vous sûr de vouloir supprimer la Table #${num} ?`)) {
-      const res = deleteTable(id);
+      const res = await deleteTable(id);
       if (res.success) {
         setFeedbackMessage(`Table #${num} supprimée.`);
+      } else {
+        setFeedbackMessage(res.error || 'Erreur lors de la suppression.');
       }
     }
   };

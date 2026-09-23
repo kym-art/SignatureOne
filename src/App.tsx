@@ -22,9 +22,12 @@ import { CheckoutView } from './components/checkout/CheckoutView';
 import { OrderConfirmationView } from './components/checkout/OrderConfirmationView';
 import { OrderTrackingView } from './components/tracking/OrderTrackingView';
 import { getCurrentUser, subscribeAuth } from './lib/auth';
-import { hydrateOrdersFromSupabase, hydrateOrdersFromBackend } from './lib/orders';
+import { getApiToken } from './lib/api';
+import { hydrateOrdersFromSupabase, hydrateOrdersFromBackend, hydrateSmsLogsFromBackend } from './lib/orders';
 import { hydrateReviewsFromBackend } from './lib/reviews';
 import { refreshProductsFromBackend } from './lib/products';
+import { refreshTablesFromBackend } from './lib/tables';
+import { refreshExpensesFromBackend } from './lib/expenses';
 import { refreshStoreStatus } from './lib/store-settings';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { User, AuthSession, Order } from './types';
@@ -45,16 +48,29 @@ export default function App() {
     return unsubscribe;
   }, []);
 
-  // Charge les commandes depuis Supabase au démarrage (source de vérité),
-  // quand Supabase est configuré. Silencieux/sans effet sinon.
+  // Charge les commandes depuis le backend au démarrage (source de vérité = DB),
+  // en cache mémoire (localStorage désactivé). Les staff (JWT) reçoivent la
+  // liste complète ; rafraîchie périodiquement pour suivre les changements de
+  // statut/paiement venus d'un autre onglet ou d'une autre machine.
   useEffect(() => {
-    // Charge les commandes depuis Supabase au démarrage (source de vérité),
-    // quand Supabase est configuré. Silencieux/sans effet sinon.
-    hydrateOrdersFromSupabase();
-    hydrateOrdersFromBackend();
+        void hydrateOrdersFromSupabase();
+        void hydrateOrdersFromBackend();
     void hydrateReviewsFromBackend(); // avis validés (public) depuis le backend
     void refreshProductsFromBackend();
+        void refreshTablesFromBackend(); // tables TableQR depuis le backend
+    void hydrateSmsLogsFromBackend(); // historique SMS staff depuis le backend
+    void refreshExpensesFromBackend(); // dépenses staff depuis le backend
     void refreshStoreStatus();
+
+    let refreshTimer: ReturnType<typeof setInterval> | undefined;
+    if (getApiToken()) {
+      refreshTimer = setInterval(() => {
+        void hydrateOrdersFromBackend();
+      }, 20000);
+    }
+    return () => {
+      if (refreshTimer) clearInterval(refreshTimer);
+    };
   }, []);
 
   // Discret accès réservé à l'équipe (les boutons Admin / Vendeur / Connexion
